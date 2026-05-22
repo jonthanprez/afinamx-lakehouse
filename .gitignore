@@ -1,0 +1,78 @@
+# ==============================================================================
+# 1. ENTORNOS, SECRETOS Y CONFIGURACIONES (REGLA DE ORO)
+# ==============================================================================
+.env
+.env.local
+.env.*.local
+*.env
+!*.env.example
+
+# ==============================================================================
+# 2. ALMACENAMIENTO DE DATOS LOCAL (CAPA MEDALLION)
+# ==============================================================================
+# Ignoramos la data cruda, procesada y los checkpoints locales
+data/
+docker_volumes/
+*.db
+*.duckdb
+*.wal
+
+# ==============================================================================
+# 3. APACHE AIRFLOW (DOCKER)
+# ==============================================================================
+# Archivos generados dinámicamente por la ejecución de Airflow
+logs/
+airflow_logs/
+plugins/
+logs/*
+!logs/.gitkeep
+
+# ==============================================================================
+# 4. dbt (DATA BUILD TOOL)
+# ==============================================================================
+# Logs de ejecución, binarios compilados y artefactos de dbt
+target/
+dbt_packages/
+dbt_modules/
+logs/dbt.log
+*.pstat
+
+# ==============================================================================
+# 5. PYTHON, PANDAS Y SPARK
+# ==============================================================================
+# Caché de ejecución y entornos virtuales locales
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+ENV/
+dist/
+build/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Spark / Hadoop logs temporales en desarrollo local
+derby.log
+metastore_db/
+spark-warehouse/
+
+# ==============================================================================
+# 6. TERRAFORM (INFRAESTRUCTURA COMO CÓDIGO)
+# ==============================================================================
+# Bloqueamos estados locales, proveedores descargados y archivos de variables de AWS
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+
+# ==============================================================================
+# 7. SISTEMA OPERATIVO
+# ==============================================================================
+.DS_Store
+Thumbs.db

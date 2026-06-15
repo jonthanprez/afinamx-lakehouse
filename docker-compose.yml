@@ -1,0 +1,94 @@
+x-airflow-common: &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.2.2-python3.11}
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    # Inyección automática de conexiones vía variables de entorno (.env)
+    AIRFLOW_CONN_POSTGRES_WOOCOMMERCE: ${AIRFLOW_CONN_POSTGRES_WOOCOMMERCE}
+    AIRFLOW_CONN_AWS_DEFAULT: ${AIRFLOW_CONN_AWS_DEFAULT}
+    ENVIRONMENT: ${ENVIRONMENT:-dev}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./data:/opt/airflow/data # Corazón del Lakehouse Medallion compartido
+    - ./dbt_project:/opt/airflow/dbt_project # Carpeta para los modelos dbt
+  user: "${AIRFLOW_UID:-1000}:0"
+  depends_on:
+    postgres-airflow:
+      condition: service_healthy
+
+services:
+  # Base de datos interna del Orquestador (Metastore de Airflow)
+  postgres-airflow:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - ./docker_volumes/postgres_airflow_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Fuente 1: WooCommerce Transaccional (Origen de datos a extraer con Faker)
+  postgres-ecommerce:
+    image: postgres:15-alpine
+    container_name: postgres-ecommerce
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5434:5432" # Mapeado al puerto 5434 local para inspección externa (DBeaver/DataGrip)
+    volumes:
+      - ./docker_volumes/postgres_ecommerce_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Inicializador de la base de datos (Migración nativa y explícita de Airflow 3)
+  airflow-init:
+    <<: *airflow-common
+    command: db migrate
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
+
+  # Componente Web de Airflow (Nueva interfaz basada en React)
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      # Fix: Evitamos curl usando validación por medio del CLI interno de Airflow
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "ServerJob"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # Componente Planificador de Airflow 3
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully

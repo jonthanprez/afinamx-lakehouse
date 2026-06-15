@@ -70,7 +70,7 @@ services:
   # Componente Web de Airflow (Nueva interfaz basada en React)
   airflow-webserver:
     <<: *airflow-common
-    command: webserver
+    command: api-server
     ports:
       - "8080:8080"
     healthcheck:

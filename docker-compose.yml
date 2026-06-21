@@ -11,12 +11,15 @@ x-airflow-common: &airflow-common
     AIRFLOW_CONN_POSTGRES_WOOCOMMERCE: ${AIRFLOW_CONN_POSTGRES_WOOCOMMERCE}
     AIRFLOW_CONN_AWS_DEFAULT: ${AIRFLOW_CONN_AWS_DEFAULT}
     ENVIRONMENT: ${ENVIRONMENT:-dev}
+    # Inyección automática de requerimientos
+    _PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/requirements.txt"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./data:/opt/airflow/data # Corazón del Lakehouse Medallion compartido
     - ./dbt_project:/opt/airflow/dbt_project # Carpeta para los modelos dbt
+    - ./requirements.txt:/opt/airflow/requirements.txt # Mapeo del archivo de dependencias
   user: "${AIRFLOW_UID:-1000}:0"
   depends_on:
     postgres-airflow:

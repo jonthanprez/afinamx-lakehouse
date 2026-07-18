@@ -23,7 +23,8 @@ docker_volumes/
 # Archivos generados dinámicamente por la ejecución de Airflow
 logs/
 airflow_logs/
-plugins/
+plugins/*
+!plugins/src/
 logs/*
 !logs/.gitkeep
 

@@ -20,16 +20,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Instalar dependencias de Linting y Testing
+      - name: Instalar dependencias de Linting
         run: |
           python -m pip install --upgrade pip
           pip install ruff black pytest sqlfluff
 
       - name: Validar Formato Python (Black)
-        run: black --check dags/ plugins/
+        run: black --check .
 
       - name: Ejecutar Linter Python (Ruff)
-        run: ruff check dags/ plugins/
+        run: ruff check .
 
       - name: Escaneo de Secretos con Gitleaks
         uses: gitleaks/gitleaks-action@v2

@@ -1,0 +1,62 @@
+name: Data Lakehouse CI Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  code-quality-and-security:
+    name: Code Quality & Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias de Linting
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff black pytest sqlfluff
+
+      - name: Validar Formato Python (Black)
+        run: black --check .
+
+      - name: Ejecutar Linter Python (Ruff)
+        run: ruff check .
+
+      - name: Escaneo de Secretos con Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dag-integrity-testing:
+    name: Airflow DAG Integrity & Unit Tests
+    runs-on: ubuntu-latest
+    needs: code-quality-and-security
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias de Airflow y pruebas
+        run: |
+          python -m pip install --upgrade pip
+          pip install "apache-airflow==2.8.1" pytest pandas
+
+      - name: Ejecutar Pruebas de Integridad de DAGs (Pytest)
+        run: |
+          python -m pytest tests/ -v

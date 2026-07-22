@@ -4,7 +4,67 @@
 #
 #    pip-compile requirements.in
 #
+black==26.5.1
+    # via -r requirements.in
+chardet==7.4.3
+    # via
+    #   diff-cover
+    #   sqlfluff
+click==8.3.3
+    # via
+    #   black
+    #   sqlfluff
+colorama==0.4.6
+    # via sqlfluff
+diff-cover==10.4.0
+    # via sqlfluff
 faker==40.23.0
     # via -r requirements.in
+iniconfig==2.3.0
+    # via pytest
+jinja2==3.1.6
+    # via
+    #   diff-cover
+    #   sqlfluff
+markupsafe==3.0.3
+    # via jinja2
+mypy-extensions==1.1.0
+    # via black
+packaging==26.2
+    # via
+    #   black
+    #   pytest
+pathspec==1.1.1
+    # via
+    #   black
+    #   sqlfluff
+platformdirs==4.11.0
+    # via
+    #   black
+    #   sqlfluff
+pluggy==1.6.0
+    # via
+    #   diff-cover
+    #   pytest
 psycopg2-binary==2.9.12
     # via -r requirements.in
+pygments==2.20.0
+    # via
+    #   diff-cover
+    #   pytest
+pytest==9.1.1
+    # via -r requirements.in
+pytokens==0.4.1
+    # via black
+pyyaml==6.0.3
+    # via sqlfluff
+regex==2026.7.19
+    # via sqlfluff
+ruff==0.15.22
+    # via -r requirements.in
+sqlfluff==4.2.2
+    # via -r requirements.in
+tblib==3.2.2
+    # via sqlfluff
+tqdm==4.69.0
+    # via sqlfluff

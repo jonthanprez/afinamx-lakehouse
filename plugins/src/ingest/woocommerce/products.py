@@ -1,8 +1,17 @@
-"""
-Master catalog of business for WooCommerce domain
-"""
+from typing import List, TypedDict
 
-PRODUCTS_CATALOG = [
+
+class Product(TypedDict):
+    id: int
+    sku: str
+    name: str
+    brand: str
+    category: str
+    price: str
+    cost: str
+
+
+PRODUCTS_CATALOG: List[Product] = [
     {
         "id": 101, 
         "sku": "AFN-FIL-101",
@@ -455,7 +464,7 @@ PRODUCTS_CATALOG = [
     }
 ]
 
-METHODS_PAYMENT = [
+METHODS_PAYMENT: List[str] = [
     # Cards
     "credit_card",
     "paypal",
@@ -469,11 +478,11 @@ METHODS_PAYMENT = [
     "oxxo_pay",
     
     # Transfers
-    "bank_transfer",  # O puedes usar "spei"
-    "cod",            # Cash on Delivery
+    "bank_transfer",
+    "cod",            
     
     # BNPL
     "kueski_pay"
 ]
 
-ORDER_STATUS = ["completed", "completed", "completed", "processing", "failed"]
+ORDER_STATUS: List[str] = ["completed", "completed", "completed", "processing", "failed"]

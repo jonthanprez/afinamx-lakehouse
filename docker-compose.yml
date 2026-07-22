@@ -20,6 +20,7 @@ x-airflow-common: &airflow-common
     - ./plugins:/opt/airflow/plugins
     - ./data:/opt/airflow/data
     - ./dbt_project:/opt/airflow/dbt_project
+    - ./tests:/opt/airflow/tests
   # MANTENEMOS ESTAS LÍNEAS ABAJO NATIVAMENTE
   user: "${AIRFLOW_UID:-1000}:0"
   depends_on:

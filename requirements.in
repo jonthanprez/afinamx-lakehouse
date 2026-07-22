@@ -1,2 +1,6 @@
 faker
 psycopg2-binary
+ruff
+black
+pytest
+sqlfluff

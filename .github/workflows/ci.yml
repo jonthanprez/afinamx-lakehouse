@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout del código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python 3.11
         uses: actions/setup-python@v5

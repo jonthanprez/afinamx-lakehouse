@@ -40,7 +40,7 @@ Para operar este ecosistema de desarrollo, utiliza los siguientes comandos en tu
   docker compose down
   ```
 
-* **Eliminar contenedores y VOLÚMENES:**  
+* **Eliminar contenedores y VOLÚMENES:**
   ⚠️ **Precaución:** Esto borrará la base de datos de metadatos de Airflow y los datos de WooCommerce almacenados en Docker.
   ```bash
   docker compose down -v

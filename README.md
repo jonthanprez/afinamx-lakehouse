@@ -87,3 +87,79 @@ Al tener el comando `COPY requirements.txt` antes de instalar en el `Dockerfile`
   cp .env.example .env
   ```
 * **Conexiones de Airflow:** Prohibido definir secretos en los archivos `.py` de los DAGs. En lugar de eso, inyectamos las conexiones directamente mediante variables de entorno en el `.env` (por ejemplo, `AIRFLOW_CONN_POSTGRES_WOOCOMMERCE` y `AIRFLOW_CONN_AWS_DEFAULT`), las cuales son leídas de forma segura por el orquestador.
+
+---
+
+## 5. Calidad de Código, Seguridad y CI/CD (Quality Gates) 🛡️
+
+Este repositorio implementa un enfoque de **Seguridad a la Izquierda (*Shift-Left Security*)** y control de calidad en 3 niveles para asegurar que solo código limpio, libre de secretos y funcional se fusione en la rama principal (`main`).
+
+---
+
+### 5.1. Herramientas de Estandarización y Linting
+
+| Herramienta | Función | Alcance |
+| :--- | :--- | :--- |
+| **Ruff** | Linter ultrarrápido para Python (sustituye Flake8, Isort, Bandit). | Sintaxis, importaciones no usadas, calidad de código. |
+| **Black** | Formateador estricto de código Python. | Estilo de código unificado en `dags/` y `plugins/`. |
+| **Gitleaks** | Detector automatizado de secretos e API Keys. | Previene la fuga accidental de credenciales al historial de Git. |
+| **Pytest** | Framework de pruebas unitarias. | Ejecuta pruebas de integridad de DAGs e importación en Airflow. |
+
+---
+
+### 5.2. Flujo de Trabajo Local (Pre-Commit Hooks)
+
+Antes de que un `git commit` sea confirmado en tu máquina, **`pre-commit`** ejecuta automáticamente las herramientas de formateo y escaneo estático localmente.
+
+#### Configuración e instalación inicial (solo una vez):
+```bash
+# 1. Instalar pre-commit en tu PC / entorno local
+pip install pre-commit
+
+# 2. Activar los hooks de Git en el proyecto
+pre-commit install
+```
+
+#### Ejecución manual (opcional):
+Si deseas formatear o validar todo el proyecto sin hacer un commit:
+```bash
+pre-commit run --all-files
+```
+
+---
+
+### 5.3. Pruebas Unitarias de Integridad de Airflow (pytest)
+
+Garantizamos que todos los DAGs sean legibles y estén libres de errores de sintaxis o dependencias faltantes ejecutando pytest dentro del entorno aislado de Docker:
+
+```bash
+# Ejecutar la suite de pruebas locales dentro del contenedor de Airflow
+docker compose exec airflow-webserver pytest tests/ -v
+```
+
+> **Nota:** La carpeta `./tests` está mapeada como un volumen dinámico dentro de Docker en `/opt/airflow/tests`, permitiendo probar cambios en vivo.
+
+---
+
+### 5.4. Integración Continua en la Nube (GitHub Actions)
+
+Al abrir un Pull Request (PR) hacia `main`, el pipeline de GitHub Actions (`.github/workflows/ci.yml`) ejecuta dos jobs en paralelo:
+
+- **`code-quality-and-security`**:
+  - Valida formato con `black --check .`
+  - Corre el linter con `ruff check .`
+  - Escanea el historial de commits con `gitleaks`.
+- **`dag-integrity-testing`**:
+  - Levanta un entorno efímero con Python 3.11 y Apache Airflow.
+  - Ejecuta la suite de `pytest tests/` para validar la carga de la DagBag.
+
+---
+
+### 5.5. Comandos Útiles de Mantenimiento de Contenedores ⚡
+
+| Acción | Comando | Impacto |
+| :--- | :--- | :--- |
+| **Pausar jornada** | `docker compose stop` | Detiene procesos liberando CPU y RAM. Mantiene estado exacto. |
+| **Reanudar jornada** | `docker compose start` | Arranca los contenedores en 3 segundos. |
+| **Liberar recursos** | `docker compose down` | Elimina contenedores y redes. Preserva bases de datos en `docker_volumes/`. |
+| **Recrear por cambios en Compose** | `docker compose up -d` | Aplica nuevos volúmenes/variables reconfigurando solo los servicios cambiados. |

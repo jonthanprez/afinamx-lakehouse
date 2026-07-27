@@ -13,11 +13,12 @@ x-airflow-common: &airflow-common
     AIRFLOW_CONN_POSTGRES_WOOCOMMERCE: ${AIRFLOW_CONN_POSTGRES_WOOCOMMERCE}
     AIRFLOW_CONN_AWS_DEFAULT: ${AIRFLOW_CONN_AWS_DEFAULT}
     ENVIRONMENT: ${ENVIRONMENT:-dev}
-    # ¡Eliminamos la variable lenta _PIP_ADDITIONAL_REQUIREMENTS!
+    PYTHONPATH: "/opt/airflow:/opt/airflow/src"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
+    - ./src:/opt/airflow/src
     - ./data:/opt/airflow/data
     - ./dbt_project:/opt/airflow/dbt_project
     - ./tests:/opt/airflow/tests

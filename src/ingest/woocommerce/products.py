@@ -1,4 +1,6 @@
-from typing import List, TypedDict
+"""Master catalog of products and constants for WooCommerce simulation."""
+
+from typing import TypedDict
 
 
 class Product(TypedDict):
@@ -7,19 +9,19 @@ class Product(TypedDict):
     name: str
     brand: str
     category: str
-    price: str
-    cost: str
+    price: float
+    cost: float
 
 
-PRODUCTS_CATALOG: List[Product] = [
+PRODUCTS_CATALOG: list[Product] = [
     {
         "id": 101,
         "sku": "AFN-FIL-101",
         "name": "Filtro de Aceite Sintético Premium",
         "brand": "Fram",
         "category": "Filtración",
-        "price": "250.00",
-        "cost": "110.00",
+        "price": 250.0,
+        "cost": 110.0,
     },
     {
         "id": 102,
@@ -27,8 +29,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Balatas Delanteras Cerámica de Alta Performance",
         "brand": "Brembo",
         "category": "Frenos",
-        "price": "850.00",
-        "cost": "390.00",
+        "price": 850.0,
+        "cost": 390.0,
     },
     {
         "id": 103,
@@ -36,8 +38,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Aceite de Motor Sintético 5W-30 (1L)",
         "brand": "Mobil 1",
         "category": "Lubricantes",
-        "price": "190.00",
-        "cost": "85.00",
+        "price": 190.0,
+        "cost": 85.0,
     },
     {
         "id": 104,
@@ -45,8 +47,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Bujía de Iridio de Larga Duración",
         "brand": "NGK",
         "category": "Encendido",
-        "price": "160.00",
-        "cost": "65.00",
+        "price": 160.0,
+        "cost": 65.0,
     },
     {
         "id": 105,
@@ -54,8 +56,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Disco de Freno Ventilado Delantero",
         "brand": "Bosch",
         "category": "Frenos",
-        "price": "1200.00",
-        "cost": "550.00",
+        "price": 1200.0,
+        "cost": 550.0,
     },
     {
         "id": 106,
@@ -63,8 +65,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Filtro de Aire de Motor Premium",
         "brand": "Mann Filter",
         "category": "Filtración",
-        "price": "320.00",
-        "cost": "145.00",
+        "price": 320.0,
+        "cost": 145.0,
     },
     {
         "id": 107,
@@ -72,8 +74,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Filtro de Cabina de Carbón Activo",
         "brand": "Bosch",
         "category": "Filtración",
-        "price": "280.00",
-        "cost": "120.00",
+        "price": 280.0,
+        "cost": 120.0,
     },
     {
         "id": 108,
@@ -81,8 +83,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Filtro de Combustible en Línea",
         "brand": "Gonher",
         "category": "Filtración",
-        "price": "180.00",
-        "cost": "75.00",
+        "price": 180.0,
+        "cost": 75.0,
     },
     {
         "id": 109,
@@ -90,8 +92,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Filtro de Transmisión Automática",
         "brand": "ACDelco",
         "category": "Filtración",
-        "price": "450.00",
-        "cost": "210.00",
+        "price": 450.0,
+        "cost": 210.0,
     },
     {
         "id": 110,
@@ -99,8 +101,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Aceite de Motor Mineral 20W-50 (946ml)",
         "brand": "Castrol",
         "category": "Lubricantes",
-        "price": "140.00",
-        "cost": "60.00",
+        "price": 140.0,
+        "cost": 60.0,
     },
     {
         "id": 111,
@@ -108,8 +110,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Fluido de Transmisión Automática ATF Dexron VI",
         "brand": "Valvoline",
         "category": "Lubricantes",
-        "price": "230.00",
-        "cost": "105.00",
+        "price": 230.0,
+        "cost": 105.0,
     },
     {
         "id": 112,
@@ -117,8 +119,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Líquido de Frenos DOT 4 de Alta Temperatura",
         "brand": "Wagner",
         "category": "Lubricantes",
-        "price": "175.00",
-        "cost": "78.00",
+        "price": 175.0,
+        "cost": 78.0,
     },
     {
         "id": 113,
@@ -126,8 +128,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Grasa para Baleros y Chasis Multipropósito",
         "brand": "Bardahl",
         "category": "Lubricantes",
-        "price": "95.00",
-        "cost": "40.00",
+        "price": 95.0,
+        "cost": 40.0,
     },
     {
         "id": 114,
@@ -135,8 +137,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Balatas Traseras de Tambor Específicas",
         "brand": "Fritec",
         "category": "Frenos",
-        "price": "420.00",
-        "cost": "190.00",
+        "price": 420.0,
+        "cost": 190.0,
     },
     {
         "id": 115,
@@ -144,8 +146,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Cilindro de Rueda Trasera Hidráulico",
         "brand": "Dorman",
         "category": "Frenos",
-        "price": "310.00",
-        "cost": "135.00",
+        "price": 310.0,
+        "cost": 135.0,
     },
     {
         "id": 116,
@@ -153,8 +155,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Manguera de Freno Delantera Reforzada",
         "brand": "Brake Premium",
         "category": "Frenos",
-        "price": "260.00",
-        "cost": "115.00",
+        "price": 260.0,
+        "cost": 115.0,
     },
     {
         "id": 117,
@@ -162,8 +164,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Bujía de Platino G-Power",
         "brand": "NGK",
         "category": "Encendido",
-        "price": "95.00",
-        "cost": "38.00",
+        "price": 95.0,
+        "cost": 38.0,
     },
     {
         "id": 118,
@@ -171,8 +173,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Juego de Cables para Bujías 8mm",
         "brand": "Kem",
         "category": "Encendido",
-        "price": "580.00",
-        "cost": "260.00",
+        "price": 580.0,
+        "cost": 260.0,
     },
     {
         "id": 119,
@@ -180,8 +182,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Bobina de Encendido Tipo Bloque",
         "brand": "Delphi",
         "category": "Encendido",
-        "price": "920.00",
-        "cost": "420.00",
+        "price": 920.0,
+        "cost": 420.0,
     },
     {
         "id": 120,
@@ -189,8 +191,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Rotor de Distribuidor Eléctrico",
         "brand": "Standard",
         "category": "Encendido",
-        "price": "115.00",
-        "cost": "48.00",
+        "price": 115.0,
+        "cost": 48.0,
     },
     {
         "id": 121,
@@ -198,8 +200,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Amortiguador Delantero de Gas Presurizado",
         "brand": "KYB",
         "category": "Suspensión y Dirección",
-        "price": "1450.00",
-        "cost": "680.00",
+        "price": 1450.0,
+        "cost": 680.0,
     },
     {
         "id": 122,
@@ -207,8 +209,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Terminal de Dirección Externa Lado Derecho",
         "brand": "SYD",
         "category": "Suspensión y Dirección",
-        "price": "340.00",
-        "cost": "150.00",
+        "price": 340.0,
+        "cost": 150.0,
     },
     {
         "id": 123,
@@ -216,8 +218,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Rotula de Suspensión Delantera Inferior",
         "brand": "Moog",
         "category": "Suspensión y Dirección",
-        "price": "490.00",
-        "cost": "220.00",
+        "price": 490.0,
+        "cost": 220.0,
     },
     {
         "id": 124,
@@ -225,8 +227,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Buje de Horquilla Inferior Reforzado",
         "brand": "Dai",
         "category": "Suspensión y Dirección",
-        "price": "120.00",
-        "cost": "50.00",
+        "price": 120.0,
+        "cost": 50.0,
     },
     {
         "id": 125,
@@ -234,8 +236,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Tornillo Estabilizador Delantero (Cacahuate)",
         "brand": "GroB",
         "category": "Suspensión y Dirección",
-        "price": "210.00",
-        "cost": "90.00",
+        "price": 210.0,
+        "cost": 90.0,
     },
     {
         "id": 126,
@@ -243,8 +245,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Batería Coche 12V 600 Amp",
         "brand": "LTH",
         "category": "Sistema Eléctrico",
-        "price": "2400.00",
-        "cost": "1150.00",
+        "price": 2400.0,
+        "cost": 1150.0,
     },
     {
         "id": 127,
@@ -252,8 +254,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Alternador de Motor Reconstruido 90 Amp",
         "brand": "Valeo",
         "category": "Sistema Eléctrico",
-        "price": "3100.00",
-        "cost": "1400.00",
+        "price": 3100.0,
+        "cost": 1400.0,
     },
     {
         "id": 128,
@@ -261,8 +263,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Foco Halógeno H4 High/Low Beam",
         "brand": "Hella",
         "category": "Sistema Eléctrico",
-        "price": "135.00",
-        "cost": "55.00",
+        "price": 135.0,
+        "cost": 55.0,
     },
     {
         "id": 129,
@@ -270,8 +272,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Marcha Motor de Arranque Eléctrico",
         "brand": "Denso",
         "category": "Sistema Eléctrico",
-        "price": "1850.00",
-        "cost": "890.00",
+        "price": 1850.0,
+        "cost": 890.0,
     },
     {
         "id": 130,
@@ -279,8 +281,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Anticongelante Concentrado 50/50 Rojo",
         "brand": "Prestone",
         "category": "Enfriamiento",
-        "price": "299.00",
-        "cost": "135.00",
+        "price": 299.0,
+        "cost": 135.0,
     },
     {
         "id": 131,
@@ -288,8 +290,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Bomba de Agua para Motor de Aluminio",
         "brand": "Gates",
         "category": "Enfriamiento",
-        "price": "780.00",
-        "cost": "340.00",
+        "price": 780.0,
+        "cost": 340.0,
     },
     {
         "id": 132,
@@ -297,8 +299,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Termostato de Motor Grados Originales",
         "brand": "Stant",
         "category": "Enfriamiento",
-        "price": "240.00",
-        "cost": "100.00",
+        "price": 240.0,
+        "cost": 100.0,
     },
     {
         "id": 133,
@@ -306,8 +308,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Radiador de Motor Aluminio-Plástico",
         "brand": "Dei",
         "category": "Enfriamiento",
-        "price": "1650.00",
-        "cost": "780.00",
+        "price": 1650.0,
+        "cost": 780.0,
     },
     {
         "id": 134,
@@ -315,8 +317,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Tapón de Radiador 16 Libras de Presión",
         "brand": "MotoRad",
         "category": "Enfriamiento",
-        "price": "90.00",
-        "cost": "35.00",
+        "price": 90.0,
+        "cost": 35.0,
     },
     {
         "id": 135,
@@ -324,8 +326,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Banda de Distribución Dentada (Timing Belt)",
         "brand": "Gates",
         "category": "Motor",
-        "price": "480.00",
-        "cost": "210.00",
+        "price": 480.0,
+        "cost": 210.0,
     },
     {
         "id": 136,
@@ -333,8 +335,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Empaque de Tapa de Punterías Siliconado",
         "brand": "TF Victor",
         "category": "Motor",
-        "price": "220.00",
-        "cost": "95.00",
+        "price": 220.0,
+        "cost": 95.0,
     },
     {
         "id": 137,
@@ -342,8 +344,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Soporte de Motor Frontal Derecho",
         "brand": "Eagle BHP",
         "category": "Motor",
-        "price": "680.00",
-        "cost": "310.00",
+        "price": 680.0,
+        "cost": 310.0,
     },
     {
         "id": 138,
@@ -351,8 +353,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Puntería Hidráulica (Buzo de Motor)",
         "brand": "Moresa",
         "category": "Motor",
-        "price": "145.00",
-        "cost": "60.00",
+        "price": 145.0,
+        "cost": 60.0,
     },
     {
         "id": 139,
@@ -360,8 +362,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Juego de Anillos para Pistón Estándar",
         "brand": "Perfect Circle",
         "category": "Motor",
-        "price": "980.00",
-        "cost": "460.00",
+        "price": 980.0,
+        "cost": 460.0,
     },
     {
         "id": 140,
@@ -369,8 +371,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Pluma Limpiaparabrisas 22 Pulgadas Premium",
         "brand": "Bosch AeroTwin",
         "category": "Accesorios y Detallado",
-        "price": "290.00",
-        "cost": "125.00",
+        "price": 290.0,
+        "cost": 125.0,
     },
     {
         "id": 141,
@@ -378,8 +380,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Limpia Parabrisas Concentrado Líquido (1L)",
         "brand": "Sonax",
         "category": "Accesorios y Detallado",
-        "price": "120.00",
-        "cost": "50.00",
+        "price": 120.0,
+        "cost": 50.0,
     },
     {
         "id": 142,
@@ -387,8 +389,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Shampoo para Carrocería con Cera Carnauba",
         "brand": "Meguiar's",
         "category": "Accesorios y Detallado",
-        "price": "340.00",
-        "cost": "160.00",
+        "price": 340.0,
+        "cost": 160.0,
     },
     {
         "id": 143,
@@ -396,8 +398,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Cera Líquida Protectora de Alta Pintura",
         "brand": "Turtle Wax",
         "category": "Accesorios y Detallado",
-        "price": "210.00",
-        "cost": "95.00",
+        "price": 210.0,
+        "cost": 95.0,
     },
     {
         "id": 144,
@@ -405,8 +407,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Inyector de Combustible Multipunto Específico",
         "brand": "Tomco",
         "category": "Combustible",
-        "price": "890.00",
-        "cost": "410.00",
+        "price": 890.0,
+        "cost": 410.0,
     },
     {
         "id": 145,
@@ -414,8 +416,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Repuesto de Bomba de Gasolina Eléctrica",
         "brand": "Walbro",
         "category": "Combustible",
-        "price": "670.00",
-        "cost": "290.00",
+        "price": 670.0,
+        "cost": 290.0,
     },
     {
         "id": 146,
@@ -423,8 +425,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Regulador de Presión de Combustible Inyección",
         "brand": "Kem",
         "category": "Combustible",
-        "price": "540.00",
-        "cost": "240.00",
+        "price": 540.0,
+        "cost": 240.0,
     },
     {
         "id": 147,
@@ -432,8 +434,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Kit de Embrague (Clutch) Completo Disco/Plato",
         "brand": "Luk",
         "category": "Transmisión",
-        "price": "2850.00",
-        "cost": "1350.00",
+        "price": 2850.0,
+        "cost": 1350.0,
     },
     {
         "id": 148,
@@ -441,8 +443,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Junta Homocinética Lado Rueda con Cubrepolvo",
         "brand": "Race",
         "category": "Transmisión",
-        "price": "720.00",
-        "cost": "320.00",
+        "price": 720.0,
+        "cost": 320.0,
     },
     {
         "id": 149,
@@ -450,8 +452,8 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Cubrepolvo de Dirección Tipo Acordeón Universal",
         "brand": "Dai",
         "category": "Transmisión",
-        "price": "85.00",
-        "cost": "32.00",
+        "price": 85.0,
+        "cost": 32.0,
     },
     {
         "id": 150,
@@ -459,12 +461,12 @@ PRODUCTS_CATALOG: List[Product] = [
         "name": "Balero Maza de Rueda Delantera con Abs",
         "brand": "SKF",
         "category": "Transmisión",
-        "price": "1350.00",
-        "cost": "610.00",
+        "price": 1350.0,
+        "cost": 610.0,
     },
 ]
 
-METHODS_PAYMENT: List[str] = [
+METHODS_PAYMENT: list[str] = [
     # Cards
     "credit_card",
     "paypal",
@@ -481,10 +483,12 @@ METHODS_PAYMENT: List[str] = [
     "kueski_pay",
 ]
 
-ORDER_STATUS: List[str] = [
-    "completed",
-    "completed",
-    "completed",
-    "processing",
-    "failed",
-]
+ORDER_STATUS_CONFIG: dict[str, list] = {
+    "statuses": ["completed", "processing", "failed", "cancelled"],
+    "weights": [
+        0.70,
+        0.15,
+        0.10,
+        0.05,
+    ],  # 70% exito, 15% proceso, 10% fallo, 5% cancelado
+}

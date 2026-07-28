@@ -1,17 +1,6 @@
 """Master catalog of products and constants for WooCommerce simulation."""
 
-from typing import TypedDict
-
-
-class Product(TypedDict):
-    id: int
-    sku: str
-    name: str
-    brand: str
-    category: str
-    price: float
-    cost: float
-
+from src.ingest.models import Product
 
 PRODUCTS_CATALOG: list[Product] = [
     {

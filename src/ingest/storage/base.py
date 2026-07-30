@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
 
 class BaseStorageWriter(ABC):
-    """Interfaz abstracta para la capa de persistencia en capa Bronze.
+    """Abstract interface for the persistence layer in the Bronze layer.
 
-    Garantiza que cualquier destino (Local o AWS S3) respete el contrato
-    de escritura y el particionamiento estilo Hive.
+    Ensures that any destination (Local or AWS S3) adheres to the write
+    contract and Hive-style partitioning.
     """
 
     @abstractmethod
@@ -16,15 +16,14 @@ class BaseStorageWriter(ABC):
         payload: Union[Dict[str, Any], str, bytes],
         dataset_name: str,
         filename: str,
-        execution_date: Optional[datetime] = None,
+        execution_date: datetime,
     ) -> str:
-        """Escribe un archivo en la capa Bronze usando particionado Hive.
+        """Writes a file to the Bronze layer using Hive partitioning.
 
-        :param payload: Datos a persistir (Diccionario, String JSON o Bytes).
-        :param dataset_name: Nombre de la fuente/dataset (ej. 'woocommerce').
-        :param filename: Nombre del archivo de salida (ej. 'orders_batch_101.json').
-        :param execution_date: Fecha para particiones Hive (año=YYYY/mes=MM/dia=DD).
-                              Si es None, debe tomar UTC actual.
-        :return: Ruta URI completa de la ubicación del archivo guardado (ej. 's3://...').
+        :param payload: Data to persist (Dictionary, JSON string, or bytes).
+        :param dataset_name: Name of the source/dataset (e.g., 'woocommerce').
+        :param filename: Name of the output file (e.g., 'orders_batch_101.json').
+        :param execution_date: Date for Hive partitions (year=YYYY/month=MM/day=DD).
+        :return: Full URI path of the saved file's location (e.g., 's3://...').
         """
         pass

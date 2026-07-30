@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -7,6 +8,8 @@ from botocore.exceptions import ClientError
 
 from src.ingest.config import S3_BUCKET_NAME
 from src.ingest.storage.base import BaseStorageWriter
+
+logger = logging.getLogger(__name__)
 
 
 class S3StorageWriter(BaseStorageWriter):
@@ -25,6 +28,9 @@ class S3StorageWriter(BaseStorageWriter):
         # Fallback to S3_BUCKET_NAME from config.py if not provided
         self.bucket_name = bucket_name or S3_BUCKET_NAME
         self.s3_client = boto3.client("s3")
+        logger.debug(
+            "S3StorageWriter initialized with bucket_name: %s", self.bucket_name
+        )
 
     def write(
         self,
@@ -46,6 +52,9 @@ class S3StorageWriter(BaseStorageWriter):
 
         # S3 Object Key: bronze/<dataset_name>/year=YYYY/month=MM/<filename>
         s3_key = f"bronze/{dataset_name}/{hive_partition}/{filename}"
+        s3_uri = f"s3://{self.bucket_name}/{s3_key}"
+
+        logger.info("Writing dataset '%s' to S3 path: %s", dataset_name, s3_uri)
 
         # 2. Inject operational lakehouse metadata envelope
         enveloped_payload = {
@@ -70,9 +79,16 @@ class S3StorageWriter(BaseStorageWriter):
                 Body=json_bytes,
                 ContentType="application/json; charset=utf-8",
             )
+            logger.info("Successfully wrote S3 object: %s", s3_uri)
         except ClientError as e:
+            logger.error(
+                "Critical failure writing to AWS S3 %s: %s",
+                s3_uri,
+                e,
+                exc_info=True,
+            )
             raise RuntimeError(
-                f"Critical failure writing to AWS S3 s3://{self.bucket_name}/{s3_key}: {e}"
+                f"Critical failure writing to AWS S3 {s3_uri}: {e}"
             ) from e
 
-        return f"s3://{self.bucket_name}/{s3_key}"
+        return s3_uri

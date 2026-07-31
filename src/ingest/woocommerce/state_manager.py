@@ -46,6 +46,7 @@ class WooCommerceStateManager:
                     f"last_order_id={state_data.get('last_order_id')}"
                 )
                 return state_data
+
         except (json.JSONDecodeError, OSError) as e:
             logger.critical(
                 f"State file '{self.state_file_path}' exists but is corrupted or unreadable: {e}. "
@@ -54,6 +55,24 @@ class WooCommerceStateManager:
             raise RuntimeError(
                 f"Corrupted ingestion state file at '{self.state_file_path}'."
             ) from e
+
+    def register_failure(self, error_message: str) -> int:
+        """Records a failure in the state, incrementing the Circuit Breaker counter.
+
+        :param error_message: Error message to record.
+        :return: Number of consecutive failures after incrementing the counter.
+        """
+        state = self.load_state()
+        failures = state.get("consecutive_failures", 0) + 1
+
+        state["consecutive_failures"] = failures
+        state["last_execution_status"] = "FAILED"
+        state["last_error_message"] = str(error_message)
+        state["last_execution_timestamp"] = datetime.now(timezone.utc).isoformat()
+
+        self._save_state(state)
+        logger.warning(f"Failure recorded in StateManager. Current counter: {failures}")
+        return failures
 
     def update_state(
         self,
@@ -90,6 +109,8 @@ class WooCommerceStateManager:
             "last_updated_at": last_updated_at or current_time,
             "last_execution_timestamp": current_time,
             "last_execution_status": status,
+            "consecutive_failures": 0,
+            "last_error_message": None,
         }
 
         self._save_state(new_state)
@@ -128,4 +149,6 @@ class WooCommerceStateManager:
             "last_updated_at": None,
             "last_execution_timestamp": datetime.now(timezone.utc).isoformat(),
             "last_execution_status": "INITIALIZED",
+            "consecutive_failures": 0,
+            "last_error_message": None,
         }

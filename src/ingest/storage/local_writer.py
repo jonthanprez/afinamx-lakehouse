@@ -21,7 +21,7 @@ class LocalStorageWriter(BaseStorageWriter):
 
     def write(
         self,
-        payload: Dict[str, Any],
+        payload: Union[Dict[str, Any], str, bytes],
         dataset_name: str,
         filename: str,
         execution_date: datetime,

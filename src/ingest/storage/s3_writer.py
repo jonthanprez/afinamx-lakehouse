@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import boto3
 from botocore.exceptions import ClientError
@@ -34,7 +34,7 @@ class S3StorageWriter(BaseStorageWriter):
 
     def write(
         self,
-        payload: Dict[str, Any],
+        payload: Union[Dict[str, Any], str, bytes],
         dataset_name: str,
         filename: str,
         execution_date: datetime,  # Strict: Required logical execution date

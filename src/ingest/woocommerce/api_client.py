@@ -8,9 +8,9 @@ and 4. Auditability.
 
 import logging
 import uuid
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
-
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -20,14 +20,13 @@ from src.ingest.storage.base import BaseStorageWriter
 from src.ingest.storage.factory import StorageWriterFactory
 from src.ingest.woocommerce.data_simulator import WooCommerceDataSimulator
 from src.ingest.woocommerce.state_manager import WooCommerceStateManager
+from src.ingest.exceptions import (
+    WooCommerceCircuitBreakerError,
+    WooCommerceAPIError,
+    StorageError,
+)
 
 logger = logging.getLogger(__name__)
-
-
-class WooCommerceCircuitBreakerError(Exception):
-    """Raised when the Circuit Breaker is open due to sustained historical failures."""
-
-    pass
 
 
 class WooCommerceAPIClient:
@@ -144,12 +143,21 @@ class WooCommerceAPIClient:
         filename = f"batch_orders_{last_order_id + 1}_to_{new_last_id}.json"
 
         # 4. Write Payload to Bronze
-        storage_result = self.storage_writer.write(
-            payload=bronze_envelope,
-            dataset_name="woocommerce",
-            filename=filename,
-            execution_date=ref_date,
-        )
+        try:
+            storage_result = self.storage_writer.write(
+                payload=bronze_envelope,
+                dataset_name="woocommerce",
+                filename=filename,
+                execution_date=ref_date,
+            )
+        except Exception as e:
+            error_msg = f"Failed to persist payload to bronze storage ({self.storage_writer.__class__.__name__}): {e}"
+            logger.error(error_msg)
+            failures = self.state_manager.register_failure(error_msg)
+            logger.error(
+                f"Ingestion storage phase failed. Updated persistent failure counter to: {failures}"
+            )
+            raise StorageError(error_msg) from e
 
         # 5. Atomic State Checkpoint Update (Resets consecutive_failures to 0)
         new_watermark_ts = max_ts or datetime.now(timezone.utc).isoformat()
@@ -215,16 +223,29 @@ class WooCommerceAPIClient:
 
         logger.info(f"Querying WooCommerce API: GET {endpoint} | params={params}")
 
-        response = self.http_session.get(
-            endpoint, params=params, auth=auth, timeout=(5.0, 30.0)
-        )
-        response.raise_for_status()
-        orders = response.json()
-
-        if not isinstance(orders, list):
-            raise ValueError(
-                f"Unexpected API response format: expected list, got {type(orders)}"
+        try:
+            response = self.http_session.get(
+                endpoint, params=params, auth=auth, timeout=(5.0, 30.0)
             )
+            response.raise_for_status()
+            orders = response.json()
+
+            if not isinstance(orders, list):
+                raise WooCommerceAPIError(
+                    f"Unexpected API response format: expected list, got {type(orders)}"
+                )
+
+        except requests.exceptions.RequestException as e:
+            error_msg = (
+                f"HTTP request failed against WooCommerce endpoint [{endpoint}]: {e}"
+            )
+            logger.error(error_msg)
+            raise WooCommerceAPIError(error_msg) from e
+
+        except (ValueError, json.JSONDecodeError) as e:
+            error_msg = f"Failed to parse JSON response from WooCommerce endpoint [{endpoint}]: {e}"
+            logger.error(error_msg)
+            raise WooCommerceAPIError(error_msg) from e
 
         # Disambiguate orders with identical second-timestamps using order ID
         filtered_orders = [o for o in orders if o.get("id", 0) > last_order_id]

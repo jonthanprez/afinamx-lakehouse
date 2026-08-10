@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Union
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 
 from src.ingest.config import S3_BUCKET_NAME
+from src.ingest.exceptions import StorageError
 from src.ingest.storage.base import BaseStorageWriter
 
 logger = logging.getLogger(__name__)
@@ -80,15 +81,14 @@ class S3StorageWriter(BaseStorageWriter):
                 ContentType="application/json; charset=utf-8",
             )
             logger.info("Successfully wrote S3 object: %s", s3_uri)
-        except ClientError as e:
-            logger.error(
-                "Critical failure writing to AWS S3 %s: %s",
-                s3_uri,
-                e,
-                exc_info=True,
-            )
-            raise RuntimeError(
-                f"Critical failure writing to AWS S3 {s3_uri}: {e}"
-            ) from e
+        except (ClientError, BotoCoreError) as e:
+            error_msg = f"Critical failure writing object to AWS S3 ({s3_uri}): {e}"
+            logger.error(error_msg, exc_info=True)
+            # Re-raise wrapped in our custom StorageError
+            raise StorageError(error_msg) from e
+        except Exception as e:
+            error_msg = f"Unexpected failure writing dataset '{dataset_name}' to S3 ({s3_uri}): {e}"
+            logger.error(error_msg, exc_info=True)
+            raise StorageError(error_msg) from e
 
         return s3_uri

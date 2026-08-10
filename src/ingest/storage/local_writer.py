@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from src.ingest.config import BRONZE_DIR
+from src.ingest.exceptions import StorageError
 from src.ingest.storage.base import BaseStorageWriter
 
 logger = logging.getLogger(__name__)
@@ -68,14 +69,17 @@ class LocalStorageWriter(BaseStorageWriter):
             os.replace(temp_path, target_file_path)
             logger.info("Successfully wrote local file: %s", target_file_path)
 
+        except (OSError, PermissionError, TypeError, ValueError) as e:
+            error_msg = f"Failed to write local dataset '{dataset_name}' to {target_file_path if 'target_file_path' in locals() else target_dir}: {e}"
+            logger.error(error_msg, exc_info=True)
+            # Wrap low-level I/O or serialization error into custom StorageError
+            raise StorageError(error_msg) from e
+
         except Exception as e:
-            logger.error(
-                "Failed to write local dataset '%s' to %s: %s",
-                dataset_name,
-                target_file_path,
-                e,
-                exc_info=True,
+            error_msg = (
+                f"Unexpected failure writing local dataset '{dataset_name}': {e}"
             )
-            raise
+            logger.error(error_msg, exc_info=True)
+            raise StorageError(error_msg) from e
 
         return str(target_file_path.resolve())

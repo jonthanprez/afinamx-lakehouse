@@ -4,3 +4,5 @@ ruff
 black
 pytest
 sqlfluff
+boto3
+requests

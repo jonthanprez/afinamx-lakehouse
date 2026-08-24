@@ -24,9 +24,7 @@ docker_volumes/
 logs/
 airflow_logs/
 plugins/*
-!plugins/src/
-logs/*
-!logs/.gitkeep
+!plugins/.gitkeep
 
 # ==============================================================================
 # 4. dbt (DATA BUILD TOOL)

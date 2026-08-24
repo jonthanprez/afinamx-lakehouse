@@ -163,3 +163,89 @@ Al abrir un Pull Request (PR) hacia `main`, el pipeline de GitHub Actions (`.git
 | **Reanudar jornada** | `docker compose start` | Arranca los contenedores en 3 segundos. |
 | **Liberar recursos** | `docker compose down` | Elimina contenedores y redes. Preserva bases de datos en `docker_volumes/`. |
 | **Recrear por cambios en Compose** | `docker compose up -d` | Aplica nuevos volúmenes/variables reconfigurando solo los servicios cambiados. |
+
+---
+
+## 6. Motor de Ingesta - Capa Bronze (`src/ingest/`) 📥
+
+### 6.1. Resumen Ejecutivo y Visión General de la Arquitectura
+El módulo `src/ingest` actúa como el **Bronze Layer Engine** para el Lakehouse. Se encarga de la extracción e ingesta de datos en bruto (*raw*) desde diversos sistemas fuente (WooCommerce, MercadoLibre, Amazon) y garantiza una transición transparente entre el desarrollo local y la producción en la nube mediante el patrón de arquitectura **Double Switch**.
+
+#### Características Arquitectónicas Clave:
+* **Switch de Entorno (DEV vs PROD):** Enruta sin fricciones los destinos de datos entre el disco local (`data/bronze/...`) y AWS S3 (`s3://<bucket>/bronze/...`) sin modificar el código de negocio.
+* **Resiliencia y Tolerancia a Fallos:** Reintentos con *exponential backoff* integrados, estado persistente de *Circuit Breaker*, limitación de tasa (*rate limiting*) y manejo explícito de excepciones.
+* **Particionamiento Estilo Hive:** Garantiza la persistencia de datos en bruto mediante rutas de particionamiento estandarizadas (`year=YYYY/month=MM/day=DD`).
+* **Política Cero Secretos (*Zero Secrets Policy*):** Lee estrictamente desde configuraciones en tiempo de ejecución o instancias de conexión de Airflow, evitando credenciales en texto plano o referencias no gestionadas a `os.environ` dentro de las tareas de orquestación.
+
+---
+
+### 6.2. Estructura de Directorios
+```text
+src/ingest/
+├── __init__.py               # Marcador de paquete
+├── config.py                 # Rutas de almacenamiento dinámicas y configuración de entorno
+├── exceptions.py             # Jerarquía de excepciones personalizadas
+├── models.py                 # Dataclasses y TypedDicts para seguridad de tipos
+├── storage/
+│   ├── __init__.py           # Exportación de abstracciones
+│   ├── base.py               # Clase Base Abstracta (ABC) para escritores de almacenamiento
+│   ├── factory.py            # Implementación del patrón Factory para selección de almacenamiento
+│   ├── local_writer.py       # DEV: Manejador de almacenamiento en disco local (escrituras atómicas)
+│   └── s3_writer.py          # PROD: Manejador de almacenamiento en AWS S3 vía boto3
+└── woocommerce/
+    ├── __init__.py
+    ├── api_client.py         # Orquestador principal y consumidor de API con wrapper de resiliencia
+    ├── data_simulator.py     # Simulador de fuente local usando Faker y lógica transaccional
+    ├── products.py           # Semilla de catálogo y constantes estáticas del dominio
+    └── state_manager.py      # Checkpoint de estado para ingesta incremental
+```
+
+---
+
+### 6.3. Módulos Core y Arquitectura de Componentes
+
+#### `src/ingest/config.py`
+Determina dinámicamente las raíces de ejecución basándose en la variable de entorno `ENVIRONMENT` (`dev` vs `prod`).
+* **Modo DEV:** Resuelve rutas a instancias de `Path` locales apuntando a `/opt/airflow/data/`.
+* **Modo PROD:** Genera prefijos de URI S3 explícitos (`s3://<bucket-name>/...`).
+
+#### `src/ingest/exceptions.py`
+Establece una jerarquía explícita de excepciones para que los DAGs y tareas puedan diferenciar entre reintentos de red, fallos de escritura en almacenamiento y violaciones irrecuperables de la API.
+
+```text
+IngestionError (Base)
+ ├── StorageError
+ └── WooCommerceError
+      ├── WooCommerceCircuitBreakerError
+      └── WooCommerceAPIError
+```
+
+#### `src/ingest/models.py`
+Proporciona estructura estricta y tipado para las entidades del dominio (`Customer`, `LineItem`, `Order`, `SimulatorState`) utilizando `TypedDict` de Python y primitivas estándar de tipado.
+
+#### `src/ingest/storage/` (Motor de Switch de Almacenamiento)
+Implementa el patrón de diseño **Abstract Factory**:
+* **`base.py`:** Define `BaseStorageWriter` forzando el contrato `write_json()`.
+* **`local_writer.py`:** Escribe archivos JSON atómicamente en local utilizando archivos temporales para evitar lecturas parciales durante operaciones concurrentes.
+* **`s3_writer.py`:** Carga payloads directamente a AWS S3 usando `boto3`.
+* **`factory.py`:** Inspecciona `config.ENVIRONMENT` para instanciar dinámicamente `LocalStorageWriter` o `S3StorageWriter`.
+
+#### `src/ingest/woocommerce/` (*Vertical Slice*: Sistema Fuente)
+* **`api_client.py`:** Integra adaptadores de reintento (`HTTPAdapter`, `Retry`), búsquedas de cursor de estado y verificaciones de *Circuit Breaker*. Soporta operación en modo dual (consultando endpoints de API en vivo o utilizando `data_simulator.py`).
+* **`state_manager.py`:** Gestiona checkpoints de cursor (`last_order_id`, `last_updated_at`) almacenados en `metadata/` para garantizar cargas por lotes incrementales e idempotentes.
+* **`data_simulator.py`:** Genera pedidos transaccionales sintéticos y realistas enfocados en atributos del dominio de e-commerce mexicano usando `Faker("es_MX")`.
+
+---
+
+### 6.4. Decisiones Arquitectónicas y Justificación
+
+#### ¿Por qué usar una Fábrica Abstracta de Almacenamiento (*Abstract Storage Factory*)?
+Codificar directamente la escritura de archivos o llamadas a `boto3` dentro de los DAGs o clientes de API genera un acoplamiento estricto con proveedores de la nube. Al desacoplar el almacenamiento mediante `StorageWriterFactory` y `BaseStorageWriter`:
+* La ejecución local incurre en **$0 costo operativo** y cero latencia.
+* El despliegue a producción requiere **cero modificaciones de código**—únicamente cambiar la bandera de configuración (`ENVIRONMENT=prod`).
+* Las pruebas unitarias son rápidas y confiables porque las pruebas locales no dependen de *mocks* de AWS ni de acceso a internet.
+
+#### ¿Por qué implementar *Circuit Breakers* y *State Managers* personalizados?
+En ingestas de e-commerce reales, las APIs de terceros frecuentemente fallan o aplican límites de tasa (*rate limit*) durante picos de tráfico.
+* El **State Manager** asegura que si una ingesta falla a mitad de camino, la reejecución del trabajo reanudará precisamente desde el último checkpoint exitoso sin introducir eventos duplicados en la capa Bronze.
+* El **Circuit Breaker** previene fallos en cascada y peticiones innecesarias a la API cuando el endpoint de destino sufre caídas prolongadas.

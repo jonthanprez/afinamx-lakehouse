@@ -12,17 +12,11 @@ repos:
 
   # 2. Ruff:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+    rev: v0.9.9
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
-
-  # 3. Black:
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-      - id: black
 
   # 4. Detección de Secretos expuestos
   - repo: https://github.com/gitleaks/gitleaks

@@ -10,9 +10,9 @@ def dagbag():
 
 def test_no_import_errors(dagbag):
     """Verifica que ningún DAG tenga errores de sintaxis o de importación de Python."""
-    assert (
-        len(dagbag.import_errors) == 0
-    ), f"Errores al importar DAGs: {dagbag.import_errors}"
+    assert len(dagbag.import_errors) == 0, (
+        f"Errores al importar DAGs: {dagbag.import_errors}"
+    )
 
 
 def test_dags_loaded(dagbag):

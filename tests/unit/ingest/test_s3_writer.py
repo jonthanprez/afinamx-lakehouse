@@ -33,8 +33,12 @@ def s3_writer(mock_s3_client: MagicMock) -> S3StorageWriter:
 
 def test_s3_writer_initialization_defaults_to_config() -> None:
     """Verify S3StorageWriter falls back to global S3_BUCKET_NAME when bucket is None."""
-    with patch("boto3.client") as mock_boto, patch(
-        "src.ingest.storage.s3_writer.S3_BUCKET_NAME", "global-lakehouse-bucket"
+    with (
+        patch("boto3.client") as mock_boto,
+        patch(
+            "src.ingest.storage.s3_writer.S3_BUCKET_NAME",
+            "global-lakehouse-bucket",
+        ),
     ):
         writer = S3StorageWriter()
         assert writer.bucket_name == "global-lakehouse-bucket"

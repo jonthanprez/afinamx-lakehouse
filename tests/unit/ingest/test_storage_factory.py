@@ -15,8 +15,9 @@ from src.ingest.storage.s3_writer import S3StorageWriter
 
 def test_factory_resolves_local_writer_via_config() -> None:
     """Verify factory returns LocalStorageWriter when config.ENVIRONMENT is dev."""
-    with patch("src.ingest.storage.factory.config.ENVIRONMENT", "dev"), patch(
-        "src.ingest.storage.factory.config.BRONZE_DIR", "/mock/bronze"
+    with (
+        patch("src.ingest.storage.factory.config.ENVIRONMENT", "dev"),
+        patch("src.ingest.storage.factory.config.BRONZE_DIR", "/mock/bronze"),
     ):
         writer = StorageWriterFactory.get_storage_writer()
 
@@ -27,11 +28,14 @@ def test_factory_resolves_local_writer_via_config() -> None:
 
 def test_factory_resolves_s3_writer_via_config() -> None:
     """Verify factory returns S3StorageWriter when config.ENVIRONMENT is prod."""
-    with patch("src.ingest.storage.factory.config.ENVIRONMENT", "prod"), patch(
-        "src.ingest.storage.factory.config.S3_BUCKET_NAME", "mock-prod-bucket"
-    ), patch(
-        "src.ingest.storage.factory.config.AWS_CONN_ID", "aws_default", create=True
-    ), patch("boto3.client"):
+    with (
+        patch("src.ingest.storage.factory.config.ENVIRONMENT", "prod"),
+        patch("src.ingest.storage.factory.config.S3_BUCKET_NAME", "mock-prod-bucket"),
+        patch(
+            "src.ingest.storage.factory.config.AWS_CONN_ID", "aws_default", create=True
+        ),
+        patch("boto3.client"),
+    ):
         writer = StorageWriterFactory.get_storage_writer()
 
         assert isinstance(writer, S3StorageWriter)
@@ -41,8 +45,9 @@ def test_factory_resolves_s3_writer_via_config() -> None:
 
 def test_factory_resolves_local_writer_via_manual_override() -> None:
     """Verify manual storage_type='local' overrides global PROD configuration."""
-    with patch("src.ingest.storage.factory.config.ENVIRONMENT", "prod"), patch(
-        "src.ingest.storage.factory.config.BRONZE_DIR", "/mock/bronze"
+    with (
+        patch("src.ingest.storage.factory.config.ENVIRONMENT", "prod"),
+        patch("src.ingest.storage.factory.config.BRONZE_DIR", "/mock/bronze"),
     ):
         writer = StorageWriterFactory.get_storage_writer(storage_type="local")
 
@@ -52,9 +57,11 @@ def test_factory_resolves_local_writer_via_manual_override() -> None:
 
 def test_factory_resolves_s3_writer_via_manual_override() -> None:
     """Verify manual storage_type='s3' overrides global DEV configuration."""
-    with patch("src.ingest.storage.factory.config.ENVIRONMENT", "dev"), patch(
-        "src.ingest.storage.factory.config.S3_BUCKET_NAME", "custom-s3-bucket"
-    ), patch("boto3.client"):
+    with (
+        patch("src.ingest.storage.factory.config.ENVIRONMENT", "dev"),
+        patch("src.ingest.storage.factory.config.S3_BUCKET_NAME", "custom-s3-bucket"),
+        patch("boto3.client"),
+    ):
         writer = StorageWriterFactory.get_storage_writer(storage_type="s3")
 
         assert isinstance(writer, S3StorageWriter)
@@ -76,9 +83,11 @@ def test_factory_sanitizes_case_and_whitespace(
     raw_target: str, expected_class: type
 ) -> None:
     """Verify factory handles uppercase and surrounding whitespace gracefully."""
-    with patch("src.ingest.storage.factory.config.BRONZE_DIR", "/mock/bronze"), patch(
-        "src.ingest.storage.factory.config.S3_BUCKET_NAME", "mock-bucket"
-    ), patch("boto3.client"):
+    with (
+        patch("src.ingest.storage.factory.config.BRONZE_DIR", "/mock/bronze"),
+        patch("src.ingest.storage.factory.config.S3_BUCKET_NAME", "mock-bucket"),
+        patch("boto3.client"),
+    ):
         writer = StorageWriterFactory.get_storage_writer(storage_type=raw_target)
 
         assert isinstance(writer, expected_class)

@@ -43,9 +43,9 @@ def test_local_writer_creates_hive_partitioned_paths(
     normalized_path = file_path.as_posix()
     expected_suffix = "bronze/woocommerce/year=2026/month=08/batch_01.json"
 
-    assert (
-        expected_suffix in normalized_path
-    ), f"Expected {expected_suffix} in {normalized_path}"
+    assert expected_suffix in normalized_path, (
+        f"Expected {expected_suffix} in {normalized_path}"
+    )
 
 
 def test_local_writer_persists_valid_json_with_metadata_envelope(

@@ -243,7 +243,11 @@ class WooCommerceDataSimulator:
 
             orders.append(order_json)
 
-        self._save_last_order_id(current_order_id)
+        if start_order_id is None:
+            self._save_last_order_id(current_order_id)
+        else:
+            self._last_order_id = current_order_id
+
         logger.info(
             "Batch completed successfully. Generated %d orders (IDs: %d to %d)",
             len(orders),

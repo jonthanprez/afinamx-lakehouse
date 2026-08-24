@@ -9,6 +9,7 @@ import json
 import logging
 from pathlib import Path
 import random
+from typing import Optional
 from faker import Faker
 
 from src.ingest.config import (
@@ -168,20 +169,26 @@ class WooCommerceDataSimulator:
         )
         return new_customer
 
-    def generate_orders(self, num_orders: int = 10) -> list[Order]:
+    def generate_orders_batch(
+        self, start_order_id: Optional[int] = None, count: int = 10
+    ) -> list[Order]:
         """Generates a batch of simulated WooCommerce API orders.
 
         Args:
-            num_orders: Number of order payloads to simulate.
+            start_order_id: Explicit starting order ID. If None, continues from last checkpoint.
+            count: Number of order payloads to simulate.
 
         Returns:
             List of generated Order dictionaries matching WooCommerce schema.
         """
-        logger.info("Starting order batch simulation (%d orders)...", num_orders)
-        current_order_id = self._get_last_order_id()
+        logger.info("Starting order batch simulation (%d orders)...", count)
+        if start_order_id is not None:
+            current_order_id = start_order_id - 1
+        else:
+            current_order_id = self._get_last_order_id()
         orders: list[Order] = []
 
-        for _ in range(num_orders):
+        for _ in range(count):
             current_order_id += 1
 
             # 1. Product selection and line items generation
@@ -219,13 +226,15 @@ class WooCommerceDataSimulator:
             )[0]
             payment_method = random.choice(METHODS_PAYMENT)
             customer = self._select_or_create_customer()
+            now_iso = datetime.now(timezone.utc).isoformat()
 
             # 3. Payload assembly
             order_json: Order = {
                 "id": current_order_id,
                 "status": status,
                 "currency": "MXN",
-                "date_created": datetime.now(timezone.utc).isoformat(),
+                "date_created": now_iso,
+                "date_modified_gmt": now_iso,
                 "total": f"{order_total:.2f}",
                 "payment_method": payment_method,
                 "customer": customer,
@@ -238,10 +247,14 @@ class WooCommerceDataSimulator:
         logger.info(
             "Batch completed successfully. Generated %d orders (IDs: %d to %d)",
             len(orders),
-            current_order_id - num_orders + 1,
+            current_order_id - count + 1,
             current_order_id,
         )
         return orders
+
+    def generate_orders(self, num_orders: int = 10) -> list[Order]:
+        """Backward-compatible alias for generating orders."""
+        return self.generate_orders_batch(count=num_orders)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,16 @@
 from typing import TypedDict
 
 
+class Product(TypedDict):
+    id: int
+    sku: str
+    name: str
+    brand: str
+    category: str
+    price: float
+    cost: float
+
+
 class Customer(TypedDict):
     id: int
     first_name: str
@@ -26,11 +36,12 @@ class LineItem(TypedDict):
     total: str
 
 
-class Order(TypedDict):
+class Order(TypedDict, total=False):
     id: int
     status: str
     currency: str
     date_created: str
+    date_modified_gmt: str
     total: str
     payment_method: str
     customer: Customer

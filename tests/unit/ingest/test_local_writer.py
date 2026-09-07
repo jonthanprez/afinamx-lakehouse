@@ -7,10 +7,11 @@ atomic file I/O operations, metadata envelope, and JSON serialization.
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 import pytest
 
+from src.ingest.models import BronzeEnvelope, IngestionMetadata
 from src.ingest.storage.local_writer import LocalStorageWriter
 
 
@@ -48,35 +49,43 @@ def test_local_writer_creates_hive_partitioned_paths(
     )
 
 
-def test_local_writer_persists_valid_json_with_metadata_envelope(
+def test_local_writer_persists_bronze_envelope_model(
     local_writer: LocalStorageWriter,
 ) -> None:
-    """Verify data is saved with operational metadata envelope and UTF-8 encoding."""
-    test_data: List[Dict[str, Union[int, float]]] = [{"order_id": 999, "total": 150.50}]
+    """Verify BronzeEnvelope Pydantic model is persisted with operational metadata."""
     exec_date = datetime(2026, 11, 5, tzinfo=timezone.utc)
+    envelope = BronzeEnvelope(
+        _metadata=IngestionMetadata(
+            dataset_name="woocommerce",
+            execution_date=exec_date.isoformat(),
+            ingested_at="2026-11-05T00:00:01+00:00",
+            execution_id="exec_001",
+            record_count=1,
+        ),
+        data=[{"order_id": 999, "total": 150.50}],
+    )
 
     file_path_str = local_writer.write(
-        payload=test_data,
+        payload=envelope,
         dataset_name="woocommerce",
         filename="orders.json",
         execution_date=exec_date,
     )
     file_path = Path(file_path_str)
 
-    # Verify content integrity and operational envelope
     with open(file_path, "r", encoding="utf-8") as f:
         saved_payload = json.load(f)
 
     assert "_metadata" in saved_payload
     assert saved_payload["_metadata"]["dataset_name"] == "woocommerce"
     assert saved_payload["_metadata"]["execution_date"] == exec_date.isoformat()
-    assert saved_payload["data"] == test_data
+    assert saved_payload["data"] == [{"order_id": 999, "total": 150.50}]
 
 
 def test_local_writer_handles_dictionary_payload(
     local_writer: LocalStorageWriter,
 ) -> None:
-    """Verify dictionary payloads are persisted correctly."""
+    """Verify dictionary payloads are persisted directly without redundant nesting."""
     test_data: Dict[str, Any] = {"order_id": 1000, "total": 200.00}
     exec_date = datetime(2026, 1, 20, tzinfo=timezone.utc)
 
@@ -91,4 +100,4 @@ def test_local_writer_handles_dictionary_payload(
     with open(file_path, "r", encoding="utf-8") as f:
         saved_payload = json.load(f)
 
-    assert saved_payload["data"] == test_data
+    assert saved_payload == test_data

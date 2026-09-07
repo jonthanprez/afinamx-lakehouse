@@ -1,8 +1,9 @@
 """Master catalog of products and constants for WooCommerce simulation."""
 
+from typing import Any
 from src.ingest.models import Product
 
-PRODUCTS_CATALOG: list[Product] = [
+_RAW_PRODUCTS_CATALOG: list[dict[str, Any]] = [
     {
         "id": 101,
         "sku": "AFN-FIL-101",
@@ -453,6 +454,10 @@ PRODUCTS_CATALOG: list[Product] = [
         "price": 1350.0,
         "cost": 610.0,
     },
+]
+
+PRODUCTS_CATALOG: list[Product] = [
+    Product.model_validate(p) for p in _RAW_PRODUCTS_CATALOG
 ]
 
 METHODS_PAYMENT: list[str] = [

@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 import boto3
@@ -57,20 +57,19 @@ class S3StorageWriter(BaseStorageWriter):
 
         logger.info("Writing dataset '%s' to S3 path: %s", dataset_name, s3_uri)
 
-        # 2. Inject operational lakehouse metadata envelope
-        enveloped_payload = {
-            "_metadata": {
-                "execution_date": execution_date.isoformat(),
-                "ingested_at": datetime.now(timezone.utc).isoformat(),
-                "dataset_name": dataset_name,
-            },
-            "data": payload,
-        }
-
-        # 3. Serialize to UTF-8 encoded byte array
-        json_bytes = json.dumps(enveloped_payload, ensure_ascii=False, indent=2).encode(
-            "utf-8"
-        )
+        # 2. Serialize to UTF-8 encoded byte array
+        if hasattr(payload, "model_dump_json"):
+            json_bytes = payload.model_dump_json(by_alias=True, indent=2).encode(
+                "utf-8"
+            )
+        elif isinstance(payload, bytes):
+            json_bytes = payload
+        elif isinstance(payload, str):
+            json_bytes = payload.encode("utf-8")
+        else:
+            json_bytes = json.dumps(payload, ensure_ascii=False, indent=2).encode(
+                "utf-8"
+            )
 
         # 4. Atomic S3 PutObject execution
         try:

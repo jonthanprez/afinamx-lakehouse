@@ -87,45 +87,45 @@ def mock_lakehouse_dirs(
 
 @pytest.fixture
 def mock_customer() -> Customer:
-    """Return a standard WooCommerce Customer dictionary conforming to models.Customer."""
-    return {
-        "id": 1,
-        "first_name": "Juan",
-        "last_name": "Pérez",
-        "email": "juan.perez@example.com",
-        "address": "Av. Reforma 123",
-        "city": "Ciudad de México",
-        "state": "CDMX",
-        "postcode": "01000",
-        "country": "MX",
-    }
+    """Return a standard WooCommerce Customer model."""
+    return Customer(
+        id=1,
+        first_name="Juan",
+        last_name="Pérez",
+        email="juan.perez@example.com",
+        address="Av. Reforma 123",
+        city="Ciudad de México",
+        state="CDMX",
+        postcode="01000",
+        country="MX",
+    )
 
 
 @pytest.fixture
 def mock_line_item() -> LineItem:
-    """Return a standard WooCommerce LineItem dictionary conforming to models.LineItem."""
-    return {
-        "product_id": 101,
-        "sku": "AFN-FIL-101",
-        "name": "Filtro de Aceite Sintético Premium",
-        "brand": "Fram",
-        "category": "Filtración",
-        "quantity": 2,
-        "unit_price": "250.0",
-        "total": "500.0",
-    }
+    """Return a standard WooCommerce LineItem model."""
+    return LineItem(
+        product_id=101,
+        sku="AFN-FIL-101",
+        name="Filtro de Aceite Sintético Premium",
+        brand="Fram",
+        category="Filtración",
+        quantity=2,
+        unit_price="250.0",
+        total="500.0",
+    )
 
 
 @pytest.fixture
 def mock_order(mock_customer: Customer, mock_line_item: LineItem) -> Order:
-    """Return a complete WooCommerce Order dictionary conforming to models.Order."""
-    return {
-        "id": 1001,
-        "status": "completed",
-        "currency": "MXN",
-        "date_created": "2026-08-11T10:00:00+00:00",
-        "total": "500.0",
-        "payment_method": "credit_card",
-        "customer": mock_customer,
-        "line_items": [mock_line_item],
-    }
+    """Return a complete WooCommerce Order model."""
+    return Order(
+        id=1001,
+        status="completed",
+        currency="MXN",
+        date_created="2026-08-11T10:00:00+00:00",
+        total="500.0",
+        payment_method="credit_card",
+        customer=mock_customer,
+        line_items=[mock_line_item],
+    )

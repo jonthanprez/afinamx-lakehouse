@@ -111,8 +111,11 @@ def test_cold_start_pipeline_end_to_end(
     assert "_metadata" in file_content
     assert file_content["_metadata"]["dataset_name"] == "woocommerce"
     assert file_content["_metadata"]["execution_date"] == exec_date.isoformat()
+    assert file_content["_metadata"]["record_count"] == 10
+    assert file_content["_metadata"]["extracted_range"]["start_order_id"] == 1001
+    assert file_content["_metadata"]["extracted_range"]["end_order_id"] == 1010
 
-    orders_payload = file_content["data"]["payload"]
+    orders_payload = file_content["data"]
     assert len(orders_payload) == 10
     assert orders_payload[0]["id"] == 1001
     assert orders_payload[-1]["id"] == 1010
@@ -181,12 +184,8 @@ def test_sequential_multi_batch_ingestion_continuity(
     assert batch_2_path.exists()
 
     # 3. Verify IDs continuity (no gap, no duplicate)
-    batch_1_orders = json.loads(batch_1_path.read_text(encoding="utf-8"))["data"][
-        "payload"
-    ]
-    batch_2_orders = json.loads(batch_2_path.read_text(encoding="utf-8"))["data"][
-        "payload"
-    ]
+    batch_1_orders = json.loads(batch_1_path.read_text(encoding="utf-8"))["data"]
+    batch_2_orders = json.loads(batch_2_path.read_text(encoding="utf-8"))["data"]
 
     batch_1_ids = [o["id"] for o in batch_1_orders]
     batch_2_ids = [o["id"] for o in batch_2_orders]

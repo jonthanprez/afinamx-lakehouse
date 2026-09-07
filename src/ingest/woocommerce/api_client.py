@@ -16,6 +16,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from src.ingest import config
+from src.ingest.models import (
+    BronzeEnvelope,
+    ExtractedRange,
+    IngestionMetadata,
+    Order,
+)
 from src.ingest.storage.base import BaseStorageWriter
 from src.ingest.storage.factory import StorageWriterFactory
 from src.ingest.woocommerce.data_simulator import WooCommerceDataSimulator
@@ -125,20 +131,23 @@ class WooCommerceAPIClient:
             }
 
         # 3. Create Audit Envelope
-        bronze_envelope = {
-            "metadata": {
-                "ingestion_timestamp": datetime.now(timezone.utc).isoformat(),
-                "source_system": "woocommerce",
-                "use_simulator": self.use_simulator,
-                "execution_id": exec_id,
-                "record_count": len(raw_orders),
-                "extracted_range": {
-                    "start_order_id": last_order_id + 1,
-                    "end_order_id": new_last_id,
-                },
-            },
-            "payload": raw_orders,
-        }
+        metadata = IngestionMetadata(
+            dataset_name="woocommerce",
+            execution_date=ref_date.isoformat(),
+            ingested_at=datetime.now(timezone.utc).isoformat(),
+            source_system="woocommerce",
+            use_simulator=self.use_simulator,
+            execution_id=exec_id,
+            record_count=len(raw_orders),
+            extracted_range=ExtractedRange(
+                start_order_id=last_order_id + 1,
+                end_order_id=new_last_id,
+            ),
+        )
+        bronze_envelope = BronzeEnvelope(
+            _metadata=metadata,
+            data=raw_orders,
+        )
 
         filename = f"batch_orders_{last_order_id + 1}_to_{new_last_id}.json"
 
@@ -249,17 +258,20 @@ class WooCommerceAPIClient:
 
         # Disambiguate orders with identical second-timestamps using order ID
         filtered_orders = [o for o in orders if o.get("id", 0) > last_order_id]
-        max_id = max((o["id"] for o in filtered_orders), default=last_order_id)
+        validated_orders = [
+            Order.model_validate(o).model_dump() for o in filtered_orders
+        ]
+        max_id = max((o["id"] for o in validated_orders), default=last_order_id)
         max_ts = max(
             (
                 o.get("date_modified_gmt")
-                for o in filtered_orders
+                for o in validated_orders
                 if o.get("date_modified_gmt")
             ),
             default=last_updated_at,
         )
 
-        return filtered_orders, max_id, max_ts
+        return validated_orders, max_id, max_ts
 
     def _build_resilient_session(self) -> requests.Session:
         """Configures HTTP Session with Exponential Backoff and Native 429 Rate Limiting."""

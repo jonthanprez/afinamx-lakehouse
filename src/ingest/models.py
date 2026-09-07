@@ -64,9 +64,11 @@ class Order(IngestionBaseModel):
         default=None, description="GMT modification timestamp in ISO 8601"
     )
     total: str = Field(..., description="Total order amount as string formatted number")
-    payment_method: str = Field(..., description="Payment gateway identifier")
-    customer: Customer = Field(
-        ..., description="Customer snapshot associated with order"
+    payment_method: Optional[str] = Field(
+        default="unknown", description="Payment gateway identifier"
+    )
+    customer: Optional[Customer] = Field(
+        default=None, description="Customer snapshot associated with order"
     )
     line_items: list[LineItem] = Field(
         default_factory=list, description="List of line items included in the order"
@@ -81,4 +83,72 @@ class SimulatorState(IngestionBaseModel):
     )
     updated_at: str = Field(
         ..., description="ISO 8601 timestamp of last checkpoint update"
+    )
+
+
+class ExtractedRange(IngestionBaseModel):
+    """Range of processed order identifiers within a single extraction batch."""
+
+    start_order_id: int = Field(..., ge=0, description="Starting order ID of batch")
+    end_order_id: int = Field(..., ge=0, description="Ending order ID of batch")
+
+
+class IngestionMetadata(IngestionBaseModel):
+    """Operational audit metadata envelope for Bronze Layer raw payloads."""
+
+    dataset_name: str = Field(
+        ..., description="Dataset entity name (e.g., 'woocommerce')"
+    )
+    execution_date: str = Field(
+        ..., description="Logical orchestrator execution date ISO 8601"
+    )
+    ingested_at: str = Field(
+        ..., description="Physical UTC ingestion timestamp ISO 8601"
+    )
+    source_system: str = Field(default="woocommerce", description="System of origin")
+    use_simulator: bool = Field(
+        default=False, description="Flag indicating if synthetic data was used"
+    )
+    execution_id: str = Field(..., description="Unique extraction run identifier")
+    record_count: int = Field(
+        ..., ge=0, description="Total count of records extracted in batch"
+    )
+    extracted_range: Optional[ExtractedRange] = Field(
+        default=None, description="Extracted identifier range bounds"
+    )
+
+
+class BronzeEnvelope(IngestionBaseModel):
+    """Unified Bronze Layer storage container with metadata envelope and data payload."""
+
+    metadata: IngestionMetadata = Field(
+        ..., alias="_metadata", description="Operational audit metadata"
+    )
+    data: list[dict] = Field(..., description="Raw domain data records")
+
+
+class IngestionState(IngestionBaseModel):
+    """Persistent state schema for tracking cursor watermarks and circuit breaker health."""
+
+    dataset_name: str = Field(default="woocommerce", description="Target dataset name")
+    last_order_id: int = Field(
+        default=1000, ge=0, description="Highest processed order ID"
+    )
+    last_updated_at: Optional[str] = Field(
+        default=None, description="Timestamp watermark of latest modification"
+    )
+    last_execution_timestamp: str = Field(
+        ..., description="ISO 8601 timestamp of the last execution"
+    )
+    last_execution_status: str = Field(
+        default="INITIALIZED",
+        description="Status code of the last execution (SUCCESS, FAILED, etc.)",
+    )
+    consecutive_failures: int = Field(
+        default=0,
+        ge=0,
+        description="Consecutive failure count for Circuit Breaker",
+    )
+    last_error_message: Optional[str] = Field(
+        default=None, description="Details of the last recorded error if failed"
     )

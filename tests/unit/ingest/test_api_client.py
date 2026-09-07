@@ -79,11 +79,11 @@ def test_extract_and_load_simulator_success(
     call_kwargs = mock_storage_writer.write.call_args.kwargs
     envelope = call_kwargs["payload"]
 
-    assert envelope["metadata"]["source_system"] == "woocommerce"
-    assert envelope["metadata"]["record_count"] == 5
-    assert envelope["metadata"]["extracted_range"]["start_order_id"] == 1001
-    assert envelope["metadata"]["extracted_range"]["end_order_id"] == 1005
-    assert len(envelope["payload"]) == 5
+    assert envelope.metadata.source_system == "woocommerce"
+    assert envelope.metadata.record_count == 5
+    assert envelope.metadata.extracted_range.start_order_id == 1001
+    assert envelope.metadata.extracted_range.end_order_id == 1005
+    assert len(envelope.data) == 5
 
     # 3. Validate state advancement
     mock_state_manager.update_state.assert_called_once()

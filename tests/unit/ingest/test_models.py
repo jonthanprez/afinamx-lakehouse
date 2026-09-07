@@ -193,3 +193,70 @@ def test_simulator_state_custom_order_id() -> None:
     """Verify SimulatorState with custom incremental order ID."""
     state = SimulatorState(last_order_id=1500, updated_at="2026-08-24T16:00:00+00:00")
     assert state.last_order_id == 1500
+
+
+# -----------------------------------------------------------------------------
+# 6. INGESTION STATE MODEL TESTS
+# -----------------------------------------------------------------------------
+
+
+def test_ingestion_state_valid_creation() -> None:
+    """Verify IngestionState creation, defaults, and circuit breaker counter."""
+    from src.ingest.models import IngestionState
+
+    state = IngestionState(
+        last_execution_timestamp="2026-08-24T15:00:00+00:00",
+    )
+    assert state.dataset_name == "woocommerce"
+    assert state.last_order_id == 1000
+    assert state.consecutive_failures == 0
+    assert state.last_execution_status == "INITIALIZED"
+
+
+def test_ingestion_state_failure_tracking() -> None:
+    """Verify IngestionState records consecutive failure increments."""
+    from src.ingest.models import IngestionState
+
+    state = IngestionState(
+        last_order_id=1020,
+        last_execution_timestamp="2026-08-24T15:00:00+00:00",
+        last_execution_status="FAILED",
+        consecutive_failures=3,
+        last_error_message="HTTP 503 Service Unavailable",
+    )
+    assert state.consecutive_failures == 3
+    assert state.last_execution_status == "FAILED"
+    assert "503" in (state.last_error_message or "")
+
+
+# -----------------------------------------------------------------------------
+# 7. BRONZE ENVELOPE AND METADATA TESTS
+# -----------------------------------------------------------------------------
+
+
+def test_bronze_envelope_valid_creation() -> None:
+    """Verify unified BronzeEnvelope model and IngestionMetadata serialization."""
+    from src.ingest.models import (
+        BronzeEnvelope,
+        ExtractedRange,
+        IngestionMetadata,
+    )
+
+    metadata = IngestionMetadata(
+        dataset_name="woocommerce",
+        execution_date="2026-08-24T15:00:00+00:00",
+        ingested_at="2026-08-24T15:00:01+00:00",
+        execution_id="exec_12345",
+        record_count=2,
+        extracted_range=ExtractedRange(start_order_id=1001, end_order_id=1002),
+    )
+    envelope = BronzeEnvelope(
+        _metadata=metadata,
+        data=[{"id": 1001}, {"id": 1002}],
+    )
+
+    dumped = envelope.model_dump(by_alias=True)
+    assert "_metadata" in dumped
+    assert dumped["_metadata"]["record_count"] == 2
+    assert dumped["_metadata"]["extracted_range"]["start_order_id"] == 1001
+    assert len(dumped["data"]) == 2

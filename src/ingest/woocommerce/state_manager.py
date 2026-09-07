@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.ingest import config
+from src.ingest.models import IngestionState
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,9 @@ class WooCommerceStateManager:
         self.state_file_path = state_file_path or config.WOOCOMMERCE_STATE_FILE
 
     def load_state(self) -> Dict[str, Any]:
-        """Loads the last recorded state from metadata storage.
+        """Loads and validates the last recorded state from metadata storage.
 
-        :return: Dictionary containing state schema (last_order_id, last_updated_at, etc.).
+        :return: Dictionary containing validated state schema.
         :raises RuntimeError: If state file exists but is corrupted (prevents cursor reset).
         """
         if not self.state_file_path.exists():
@@ -40,14 +41,15 @@ class WooCommerceStateManager:
 
         try:
             with open(self.state_file_path, "r", encoding="utf-8") as f:
-                state_data = json.load(f)
+                raw_data = json.load(f)
+                state = IngestionState.model_validate(raw_data)
                 logger.info(
                     f"State loaded successfully from '{self.state_file_path}': "
-                    f"last_order_id={state_data.get('last_order_id')}"
+                    f"last_order_id={state.last_order_id}"
                 )
-                return state_data
+                return state.model_dump()
 
-        except (json.JSONDecodeError, OSError) as e:
+        except Exception as e:
             logger.critical(
                 f"State file '{self.state_file_path}' exists but is corrupted or unreadable: {e}. "
                 "Halting pipeline execution to prevent illegal cursor resets."
@@ -62,15 +64,20 @@ class WooCommerceStateManager:
         :param error_message: Error message to record.
         :return: Number of consecutive failures after incrementing the counter.
         """
-        state = self.load_state()
-        failures = state.get("consecutive_failures", 0) + 1
+        state_dict = self.load_state()
+        failures = state_dict.get("consecutive_failures", 0) + 1
 
-        state["consecutive_failures"] = failures
-        state["last_execution_status"] = "FAILED"
-        state["last_error_message"] = str(error_message)
-        state["last_execution_timestamp"] = datetime.now(timezone.utc).isoformat()
+        state = IngestionState(
+            dataset_name=state_dict.get("dataset_name", "woocommerce"),
+            last_order_id=state_dict.get("last_order_id", 1000),
+            last_updated_at=state_dict.get("last_updated_at"),
+            last_execution_timestamp=datetime.now(timezone.utc).isoformat(),
+            last_execution_status="FAILED",
+            consecutive_failures=failures,
+            last_error_message=str(error_message),
+        )
 
-        self._save_state(state)
+        self._save_state(state.model_dump())
         logger.warning(f"Failure recorded in StateManager. Current counter: {failures}")
         return failures
 
@@ -103,18 +110,19 @@ class WooCommerceStateManager:
             last_order_id = current_max_id
 
         current_time = datetime.now(timezone.utc).isoformat()
-        new_state: Dict[str, Any] = {
-            "dataset_name": "woocommerce",
-            "last_order_id": last_order_id,
-            "last_updated_at": last_updated_at or current_time,
-            "last_execution_timestamp": current_time,
-            "last_execution_status": status,
-            "consecutive_failures": 0,
-            "last_error_message": None,
-        }
+        state = IngestionState(
+            dataset_name="woocommerce",
+            last_order_id=last_order_id,
+            last_updated_at=last_updated_at or current_time,
+            last_execution_timestamp=current_time,
+            last_execution_status=status,
+            consecutive_failures=0,
+            last_error_message=None,
+        )
 
-        self._save_state(new_state)
-        return new_state
+        state_dict = state.model_dump()
+        self._save_state(state_dict)
+        return state_dict
 
     def _save_state(self, state_data: Dict[str, Any]) -> None:
         """Writes state dictionary safely to disk via temp file replacement.
@@ -143,12 +151,12 @@ class WooCommerceStateManager:
     def _get_default_state(self) -> Dict[str, Any]:
         """Generates initial default state schema."""
         default_start_id = getattr(config, "DEFAULT_START_ORDER_ID", 1000)
-        return {
-            "dataset_name": "woocommerce",
-            "last_order_id": default_start_id,
-            "last_updated_at": None,
-            "last_execution_timestamp": datetime.now(timezone.utc).isoformat(),
-            "last_execution_status": "INITIALIZED",
-            "consecutive_failures": 0,
-            "last_error_message": None,
-        }
+        return IngestionState(
+            dataset_name="woocommerce",
+            last_order_id=default_start_id,
+            last_updated_at=None,
+            last_execution_timestamp=datetime.now(timezone.utc).isoformat(),
+            last_execution_status="INITIALIZED",
+            consecutive_failures=0,
+            last_error_message=None,
+        ).model_dump()

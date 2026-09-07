@@ -6,7 +6,7 @@ operational metadata envelopment, serialization, and cloud error handling.
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -72,17 +72,26 @@ def test_s3_writer_constructs_hive_partitioned_s3_uri(
     assert call_kwargs["ContentType"] == "application/json; charset=utf-8"
 
 
-def test_s3_writer_persists_valid_json_with_metadata_envelope(
+def test_s3_writer_persists_bronze_envelope_model(
     s3_writer: S3StorageWriter, mock_s3_client: MagicMock
 ) -> None:
-    """Verify payload is wrapped inside operational metadata envelope and UTF-8 encoded."""
-    test_data: List[Dict[str, Union[int, float]]] = [
-        {"order_id": 1002, "total": 1850.50}
-    ]
+    """Verify BronzeEnvelope Pydantic model is serialized and written directly to AWS S3."""
+    from src.ingest.models import BronzeEnvelope, IngestionMetadata
+
     exec_date = datetime(2026, 12, 1, 9, 0, 0, tzinfo=timezone.utc)
+    envelope = BronzeEnvelope(
+        _metadata=IngestionMetadata(
+            dataset_name="woocommerce",
+            execution_date=exec_date.isoformat(),
+            ingested_at="2026-12-01T09:00:01+00:00",
+            execution_id="exec_s3_001",
+            record_count=1,
+        ),
+        data=[{"order_id": 1002, "total": 1850.50}],
+    )
 
     s3_writer.write(
-        payload=test_data,
+        payload=envelope,
         dataset_name="woocommerce",
         filename="orders.json",
         execution_date=exec_date,
@@ -100,14 +109,14 @@ def test_s3_writer_persists_valid_json_with_metadata_envelope(
     assert "_metadata" in saved_payload
     assert saved_payload["_metadata"]["dataset_name"] == "woocommerce"
     assert saved_payload["_metadata"]["execution_date"] == exec_date.isoformat()
-    assert "ingested_at" in saved_payload["_metadata"]
-    assert saved_payload["data"] == test_data
+    assert saved_payload["_metadata"]["record_count"] == 1
+    assert saved_payload["data"] == [{"order_id": 1002, "total": 1850.50}]
 
 
 def test_s3_writer_handles_dictionary_payload(
     s3_writer: S3StorageWriter, mock_s3_client: MagicMock
 ) -> None:
-    """Verify dictionary payloads are wrapped and serialized accurately."""
+    """Verify dictionary payloads are serialized directly without redundant nesting."""
     test_data: Dict[str, Any] = {
         "order_id": 9999,
         "status": "completed",
@@ -125,7 +134,7 @@ def test_s3_writer_handles_dictionary_payload(
     call_kwargs = mock_s3_client.put_object.call_args.kwargs
     saved_payload = json.loads(call_kwargs["Body"].decode("utf-8"))
 
-    assert saved_payload["data"] == test_data
+    assert saved_payload == test_data
 
 
 def test_s3_writer_wraps_client_error_in_storage_error(

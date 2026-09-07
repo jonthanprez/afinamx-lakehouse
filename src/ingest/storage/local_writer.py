@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -41,17 +41,7 @@ class LocalStorageWriter(BaseStorageWriter):
             target_file_path,
         )
 
-        # 2. Inject operational metadata envelope
-        enveloped_payload = {
-            "_metadata": {
-                "execution_date": execution_date.isoformat(),
-                "ingested_at": datetime.now(timezone.utc).isoformat(),
-                "dataset_name": dataset_name,
-            },
-            "data": payload,
-        }
-
-        # 3. True Atomic Write via Temporary File + Atomic Rename
+        # 2. True Atomic Write via Temporary File + Atomic Rename
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -60,7 +50,31 @@ class LocalStorageWriter(BaseStorageWriter):
                 encoding="utf-8",
                 prefix=".tmp_",
             ) as tmp_file:
-                json.dump(enveloped_payload, tmp_file, ensure_ascii=False, indent=2)
+                if hasattr(payload, "model_dump"):
+                    json.dump(
+                        payload.model_dump(by_alias=True),
+                        tmp_file,
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                elif isinstance(payload, (dict, list)):
+                    json.dump(
+                        payload,
+                        tmp_file,
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                elif isinstance(payload, str):
+                    tmp_file.write(payload)
+                elif isinstance(payload, bytes):
+                    tmp_file.write(payload.decode("utf-8"))
+                else:
+                    json.dump(
+                        payload,
+                        tmp_file,
+                        ensure_ascii=False,
+                        indent=2,
+                    )
                 tmp_file.flush()
                 os.fsync(tmp_file.fileno())  # Force buffer flush to physical disk
                 temp_path = tmp_file.name

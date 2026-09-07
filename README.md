@@ -100,10 +100,9 @@ Este repositorio implementa un enfoque de **Seguridad a la Izquierda (*Shift-Lef
 
 | Herramienta | Función | Alcance |
 | :--- | :--- | :--- |
-| **Ruff** | Linter ultrarrápido para Python (sustituye Flake8, Isort, Bandit). | Sintaxis, importaciones no usadas, calidad de código. |
-| **Black** | Formateador estricto de código Python. | Estilo de código unificado en `dags/` y `plugins/`. |
+| **Ruff** | Linter y formateador ultrarrápido para Python (sustituye Flake8, Isort, Black, Bandit). | Formateo estricto, sintaxis, importaciones no usadas y reglas de estilo en todo el repositorio. |
 | **Gitleaks** | Detector automatizado de secretos e API Keys. | Previene la fuga accidental de credenciales al historial de Git. |
-| **Pytest** | Framework de pruebas unitarias. | Ejecuta pruebas de integridad de DAGs e importación en Airflow. |
+| **Pytest** | Framework de pruebas unitarias y de integración. | Ejecuta la validación de integridad de DAGs y la suite completa de pruebas del motor de ingesta. |
 
 ---
 
@@ -128,30 +127,78 @@ pre-commit run --all-files
 
 ---
 
-### 5.3. Pruebas Unitarias de Integridad de Airflow (pytest)
+### 5.3. Estrategia y Suite de Pruebas Automatizadas (pytest) 🧪
 
-Garantizamos que todos los DAGs sean legibles y estén libres de errores de sintaxis o dependencias faltantes ejecutando pytest dentro del entorno aislado de Docker:
+El proyecto cuenta con una pirámide de pruebas automatizadas con aislamiento total del sistema de archivos, garantizando que el código sea confiable y reproducible tanto en local como en CI/CD:
 
-```bash
-# Ejecutar la suite de pruebas locales dentro del contenedor de Airflow
-docker compose exec airflow-webserver pytest tests/ -v
+```text
+tests/
+├── conftest.py                             # Fixtures globales, aislamiento de rutas y mocks de AWS/Dominio
+├── test_dag_validation.py                  # Pruebas de integridad y carga de DAGs de Airflow (DagBag)
+├── unit/                                   # Pruebas Unitarias Aisladas
+│   └── ingest/
+│       ├── test_config.py                  # Resolución dinámica de rutas (DEV vs PROD S3)
+│       ├── test_local_writer.py            # Escrituras atómicas (.tmp -> .json) y estructura de carpetas
+│       ├── test_s3_writer.py               # Subida a S3 con boto3 y manejo de excepciones
+│       ├── test_storage_factory.py         # Factory pattern y resolución de StorageWriter
+│       ├── test_state_manager.py           # Checkpointing, persistencia y recuperación de estado corrupto
+│       └── test_api_client.py              # Cliente API, rate limiting y disparo de Circuit Breaker
+└── integration/                            # Pruebas de Integración End-to-End
+    └── ingest/
+        ├── test_simulator_to_storage.py    # Pipeline E2E: Simulator -> Client -> Writer con particionado Hive
+        └── test_state_persistence.py       # Checkpointing multi-lote, continuidad de IDs y ciclo del Circuit Breaker
 ```
 
-> **Nota:** La carpeta `./tests` está mapeada como un volumen dinámico dentro de Docker en `/opt/airflow/tests`, permitiendo probar cambios en vivo.
+#### Capas de Prueba:
+1. **Aislamiento del Entorno y Fixtures Globales (`conftest.py`):**
+   * **Redirección de Almacenamiento:** Mediante la fixture `mock_lakehouse_dirs`, todas las operaciones de escritura de las pruebas se redirigen a directorios temporales efímeros (`tmp_path`), garantizando que ninguna prueba altere los datos locales reales (`./data/`).
+   * **Mocks de AWS y Entorno:** Inyecta automáticamente credenciales falsas de AWS y fuerza `ENVIRONMENT=dev`.
+   * **Payloads Tipados:** Provee fixtures tipadas (`mock_customer`, `mock_line_item`, `mock_order`) conformes a los modelos del dominio.
+
+2. **Pruebas Unitarias (`tests/unit/ingest/`):**
+   * Valida componentes individuales en aislamiento: cálculo de rutas, escrituras atómicas en disco, subidas mockeadas a S3, instanciación por factoría y manejo de errores de conexión.
+
+3. **Pruebas de Integración (`tests/integration/ingest/`):**
+   * **Flujo E2E:** Verifica la cadena completa `DataSimulator` $\rightarrow$ `WooCommerceAPIClient` $\rightarrow$ `LocalStorageWriter`.
+   * **Particionado Hive:** Valida la creación exacta de particiones temporales (`year=YYYY/month=MM/batch_orders_X_to_Y.json`).
+   * **Continuidad de Lotes e Idempotencia:** Confirma que ejecuciones consecutivas incrementen el cursor de pedidos sin duplicados ni pérdida de eventos.
+   * **Resiliencia de Circuit Breaker:** Prueba la apertura del interruptor tras fallos reiterados y su posterior recuperación ante respuestas exitosas.
+
+4. **Integridad de DAGs (`tests/test_dag_validation.py`):**
+   * Asegura que los DAGs carguen limpiamente en la `DagBag` de Airflow sin ciclos ni errores de importación.
+
+#### Comandos de Ejecución de Pruebas:
+Para ejecutar las pruebas dentro del entorno hermético de Docker:
+
+```bash
+# 1. Ejecutar la suite completa de pruebas
+docker compose exec airflow-webserver pytest tests/ -v
+
+# 2. Ejecutar únicamente las pruebas unitarias del motor de ingesta
+docker compose exec airflow-webserver pytest tests/unit/ingest/ -v
+
+# 3. Ejecutar únicamente las pruebas de integración E2E
+docker compose exec airflow-webserver pytest tests/integration/ingest/ -v
+
+# 4. Validar únicamente la integridad de los DAGs de Airflow
+docker compose exec airflow-webserver pytest tests/test_dag_validation.py -v
+```
+
+> **Nota:** La carpeta `./tests` está mapeada como un volumen dinámico dentro de Docker en `/opt/airflow/tests`, permitiendo probar cambios en vivo sin reconstruir la imagen.
 
 ---
 
 ### 5.4. Integración Continua en la Nube (GitHub Actions)
 
-Al abrir un Pull Request (PR) hacia `main`, el pipeline de GitHub Actions (`.github/workflows/ci.yml`) ejecuta dos jobs en paralelo:
+Al abrir un Pull Request (PR) o hacer push hacia `main` o `master`, el pipeline de GitHub Actions (`.github/workflows/ci.yml`) ejecuta dos jobs en paralelo:
 
 - **`code-quality-and-security`**:
-  - Valida formato con `black --check .`
-  - Corre el linter con `ruff check .`
-  - Escanea el historial de commits con `gitleaks`.
+  - Valida formato estricto con `ruff format --check .`
+  - Ejecuta el linter con `ruff check .`
+  - Escanea el historial de commits y credenciales con `gitleaks`.
 - **`dag-integrity-testing`**:
   - Levanta un entorno efímero con Python 3.11 y Apache Airflow.
-  - Ejecuta la suite de `pytest tests/` para validar la carga de la DagBag.
+  - Ejecuta la suite completa de `pytest tests/ -v` (DAGs, pruebas unitarias y de integración).
 
 ---
 

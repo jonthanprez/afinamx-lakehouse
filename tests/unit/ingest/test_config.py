@@ -24,6 +24,8 @@ def test_config_dev_mode_defaults(set_testing_environment: None) -> None:
     importlib.reload(config)
 
     assert config.ENVIRONMENT == "dev"
+    assert (config.DEFAULT_ROOT / "src").exists()
+    assert (config.DEFAULT_ROOT / "src" / "ingest").exists()
     assert isinstance(config.BRONZE_DIR, Path)
     assert isinstance(config.SILVER_DIR, Path)
     assert isinstance(config.GOLD_DIR, Path)

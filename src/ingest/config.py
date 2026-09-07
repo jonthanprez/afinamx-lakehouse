@@ -17,7 +17,7 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "afinamx-lakehouse-prod")
 # ------------------------------------------------------------------------------
 # 2. PROJECT PATHS DETERMINATION
 # ------------------------------------------------------------------------------
-DEFAULT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = Path(os.getenv("AIRFLOW_HOME", DEFAULT_ROOT))
 
 LOCAL_DATA_DIR = PROJECT_ROOT / "data"

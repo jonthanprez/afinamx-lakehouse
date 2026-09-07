@@ -9,7 +9,7 @@ import json
 import logging
 from pathlib import Path
 import random
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from faker import Faker
 
 from src.ingest.config import (
@@ -40,8 +40,8 @@ class WooCommerceDataSimulator:
         """Initializes the WooCommerce simulator.
 
         Args:
-            - customer_pool_size: Initial number of customers to generate in the pool.
-            - returning_customer_ratio: Probability (0.0 to 1.0) of reusing an existing customer.
+            customer_pool_size: Initial number of customers to generate in the pool.
+            returning_customer_ratio: Probability (0.0 to 1.0) of reusing an existing customer.
         """
         self.state_file = Path(WOOCOMMERCE_STATE_FILE)
         self.customers_file = Path(WOOCOMMERCE_CUSTOMERS_FILE)
@@ -54,37 +54,36 @@ class WooCommerceDataSimulator:
             self.returning_customer_ratio,
         )
 
-        # Charge or initialize persistent pool client
-        self.customer_pool: list[Customer] = self._load_or_create_customer_pool()
+        # Load or initialize persistent customer pool
+        self.customer_pool: List[Customer] = self._load_or_create_customer_pool()
 
     def _generate_single_customer(self, customer_id: int) -> Customer:
-        """Helper method to generate a single fake customer dict."""
-        return {
-            "id": customer_id,
-            "first_name": fake.first_name(),
-            "last_name": fake.last_name(),
-            "email": fake.email(),
-            "address": fake.street_address(),
-            "city": fake.city(),
-            "state": fake.state_abbr(),
-            "postcode": fake.postcode(),
-            "country": "MX",
-        }
+        """Helper method to generate and validate a single fake customer model."""
+        return Customer(
+            id=customer_id,
+            first_name=fake.first_name(),
+            last_name=fake.last_name(),
+            email=fake.email(),
+            address=fake.street_address(),
+            city=fake.city(),
+            state=fake.state_abbr(),
+            postcode=fake.postcode(),
+            country="MX",
+        )
 
-    def _load_or_create_customer_pool(self) -> list[Customer]:
+    def _load_or_create_customer_pool(self) -> List[Customer]:
         """Loads the customer pool from disk or generates it using Faker if missing."""
         if self.customers_file.exists():
             try:
-                pool: list[Customer] = json.loads(
-                    self.customers_file.read_text(encoding="utf-8")
-                )
+                raw_pool = json.loads(self.customers_file.read_text(encoding="utf-8"))
+                pool = [Customer.model_validate(c) for c in raw_pool]
                 logger.info(
                     "Customer pool loaded successfully (%d records from %s)",
                     len(pool),
                     self.customers_file,
                 )
                 return pool
-            except (json.JSONDecodeError, OSError) as err:
+            except (json.JSONDecodeError, OSError, ValueError) as err:
                 logger.warning(
                     "Error reading customer file %s. Regenerating new pool. Details: %s",
                     self.customers_file,
@@ -103,11 +102,12 @@ class WooCommerceDataSimulator:
         self._save_customer_pool(pool)
         return pool
 
-    def _save_customer_pool(self, pool: list[Customer]) -> None:
+    def _save_customer_pool(self, pool: List[Customer]) -> None:
         """Atomically persists the customer pool to metadata storage."""
         temp_file = self.customers_file.with_suffix(".tmp")
+        serialized = [c.model_dump() for c in pool]
         temp_file.write_text(
-            json.dumps(pool, indent=2, ensure_ascii=False), encoding="utf-8"
+            json.dumps(serialized, indent=2, ensure_ascii=False), encoding="utf-8"
         )
         temp_file.replace(self.customers_file)
         logger.debug(
@@ -125,13 +125,13 @@ class WooCommerceDataSimulator:
             return DEFAULT_START_ORDER_ID
 
         try:
-            state: SimulatorState = json.loads(
-                self.state_file.read_text(encoding="utf-8")
+            raw_state = json.loads(self.state_file.read_text(encoding="utf-8"))
+            state = SimulatorState.model_validate(raw_state)
+            logger.info(
+                "Last order_id recovered from metadata: %d", state.last_order_id
             )
-            last_id = state.get("last_order_id", DEFAULT_START_ORDER_ID)
-            logger.info("Last order_id recovered from metadata: %d", last_id)
-            return last_id
-        except (json.JSONDecodeError, OSError) as err:
+            return state.last_order_id
+        except (json.JSONDecodeError, OSError, ValueError) as err:
             logger.warning(
                 "Error reading state file %s. Resetting order_id to %d. Details: %s",
                 self.state_file,
@@ -142,12 +142,12 @@ class WooCommerceDataSimulator:
 
     def _save_last_order_id(self, last_id: int) -> None:
         """Atomically updates the processed order_id checkpoint."""
-        state: SimulatorState = {
-            "last_order_id": last_id,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
+        state = SimulatorState(
+            last_order_id=last_id,
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
         temp_file = self.state_file.with_suffix(".tmp")
-        temp_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        temp_file.write_text(state.model_dump_json(indent=2), encoding="utf-8")
         temp_file.replace(self.state_file)
         logger.info("Checkpoint updated successfully: last_order_id = %d", last_id)
 
@@ -165,28 +165,28 @@ class WooCommerceDataSimulator:
         logger.debug(
             "New customer registered dynamically: ID %d (%s)",
             new_id,
-            new_customer["email"],
+            new_customer.email,
         )
         return new_customer
 
     def generate_orders_batch(
         self, start_order_id: Optional[int] = None, count: int = 10
-    ) -> list[Order]:
-        """Generates a batch of simulated WooCommerce API orders.
+    ) -> List[Dict[str, Any]]:
+        """Generates a batch of validated simulated WooCommerce API orders.
 
         Args:
             start_order_id: Explicit starting order ID. If None, continues from last checkpoint.
             count: Number of order payloads to simulate.
 
         Returns:
-            List of generated Order dictionaries matching WooCommerce schema.
+            List of generated and validated Order dictionaries matching WooCommerce schema.
         """
         logger.info("Starting order batch simulation (%d orders)...", count)
         if start_order_id is not None:
             current_order_id = start_order_id - 1
         else:
             current_order_id = self._get_last_order_id()
-        orders: list[Order] = []
+        orders: List[Dict[str, Any]] = []
 
         for _ in range(count):
             current_order_id += 1
@@ -197,26 +197,26 @@ class WooCommerceDataSimulator:
                 PRODUCTS_CATALOG, k=min(num_items, len(PRODUCTS_CATALOG))
             )
 
-            line_items: list[LineItem] = []
+            line_items: List[LineItem] = []
             order_total = 0.0
 
             for prod in selected_products:
                 qty = random.randint(1, 3)
-                unit_price = prod["price"]
+                unit_price = prod.price
                 item_total = round(qty * unit_price, 2)
                 order_total += item_total
 
                 line_items.append(
-                    {
-                        "product_id": prod["id"],
-                        "sku": prod["sku"],
-                        "name": prod["name"],
-                        "brand": prod["brand"],
-                        "category": prod["category"],
-                        "quantity": qty,
-                        "unit_price": f"{unit_price:.2f}",
-                        "total": f"{item_total:.2f}",
-                    }
+                    LineItem(
+                        product_id=prod.id,
+                        sku=prod.sku,
+                        name=prod.name,
+                        brand=prod.brand,
+                        category=prod.category,
+                        quantity=qty,
+                        unit_price=f"{unit_price:.2f}",
+                        total=f"{item_total:.2f}",
+                    )
                 )
 
             # 2. Metadata assignment
@@ -228,20 +228,20 @@ class WooCommerceDataSimulator:
             customer = self._select_or_create_customer()
             now_iso = datetime.now(timezone.utc).isoformat()
 
-            # 3. Payload assembly
-            order_json: Order = {
-                "id": current_order_id,
-                "status": status,
-                "currency": "MXN",
-                "date_created": now_iso,
-                "date_modified_gmt": now_iso,
-                "total": f"{order_total:.2f}",
-                "payment_method": payment_method,
-                "customer": customer,
-                "line_items": line_items,
-            }
+            # 3. Payload assembly and Pydantic validation
+            order = Order(
+                id=current_order_id,
+                status=status,
+                currency="MXN",
+                date_created=now_iso,
+                date_modified_gmt=now_iso,
+                total=f"{order_total:.2f}",
+                payment_method=payment_method,
+                customer=customer,
+                line_items=line_items,
+            )
 
-            orders.append(order_json)
+            orders.append(order.model_dump())
 
         if start_order_id is None:
             self._save_last_order_id(current_order_id)
@@ -256,7 +256,7 @@ class WooCommerceDataSimulator:
         )
         return orders
 
-    def generate_orders(self, num_orders: int = 10) -> list[Order]:
+    def generate_orders(self, num_orders: int = 10) -> List[Dict[str, Any]]:
         """Backward-compatible alias for generating orders."""
         return self.generate_orders_batch(count=num_orders)
 

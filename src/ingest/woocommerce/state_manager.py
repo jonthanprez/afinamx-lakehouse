@@ -5,15 +5,15 @@ last_updated_at) to ensure incremental, idempotent executions.
 """
 
 import json
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.common.logger import get_logger
 from src.ingest import config
 from src.ingest.models import IngestionState
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class WooCommerceStateManager:
@@ -34,8 +34,8 @@ class WooCommerceStateManager:
         """
         if not self.state_file_path.exists():
             logger.info(
-                f"No previous state file found at '{self.state_file_path}'. "
-                "Initializing default state."
+                "Initializing default state",
+                extra={"state_file": str(self.state_file_path)},
             )
             return self._get_default_state()
 
@@ -44,15 +44,24 @@ class WooCommerceStateManager:
                 raw_data = json.load(f)
                 state = IngestionState.model_validate(raw_data)
                 logger.info(
-                    f"State loaded successfully from '{self.state_file_path}': "
-                    f"last_order_id={state.last_order_id}"
+                    "State loaded successfully",
+                    extra={
+                        "state_file": str(self.state_file_path),
+                        "last_order_id": state.last_order_id,
+                        "last_updated_at": state.last_updated_at,
+                        "consecutive_failures": state.consecutive_failures,
+                    },
                 )
                 return state.model_dump()
 
         except Exception as e:
             logger.critical(
-                f"State file '{self.state_file_path}' exists but is corrupted or unreadable: {e}. "
-                "Halting pipeline execution to prevent illegal cursor resets."
+                "Corrupted or unreadable state file",
+                exc_info=True,
+                extra={
+                    "state_file": str(self.state_file_path),
+                    "error": str(e),
+                },
             )
             raise RuntimeError(
                 f"Corrupted ingestion state file at '{self.state_file_path}'."
@@ -78,7 +87,14 @@ class WooCommerceStateManager:
         )
 
         self._save_state(state.model_dump())
-        logger.warning(f"Failure recorded in StateManager. Current counter: {failures}")
+        logger.warning(
+            "Failure recorded in StateManager",
+            extra={
+                "consecutive_failures": failures,
+                "last_error_message": str(error_message),
+                "state_file": str(self.state_file_path),
+            },
+        )
         return failures
 
     def update_state(
@@ -104,8 +120,11 @@ class WooCommerceStateManager:
         current_max_id = current_state.get("last_order_id", 0)
         if last_order_id < current_max_id:
             logger.warning(
-                f"Provided last_order_id ({last_order_id}) is smaller than current state "
-                f"({current_max_id}). Retaining higher cursor id."
+                "Provided last_order_id is smaller than current state",
+                extra={
+                    "provided_id": last_order_id,
+                    "current_max_id": current_max_id,
+                },
             )
             last_order_id = current_max_id
 
@@ -139,12 +158,21 @@ class WooCommerceStateManager:
 
             temp_file.replace(self.state_file_path)
             logger.info(
-                f"State updated atomically at '{self.state_file_path}': "
-                f"last_order_id={state_data.get('last_order_id')}"
+                "State updated atomically",
+                extra={
+                    "state_file": str(self.state_file_path),
+                    "last_order_id": state_data.get("last_order_id"),
+                    "status": state_data.get("last_execution_status"),
+                },
             )
         except Exception as e:
             logger.critical(
-                f"Critical error saving state file at '{self.state_file_path}': {e}"
+                "Critical error saving state file",
+                exc_info=True,
+                extra={
+                    "state_file": str(self.state_file_path),
+                    "error": str(e),
+                },
             )
             raise RuntimeError(f"I/O error updating ingestion checkpoint: {e}") from e
 

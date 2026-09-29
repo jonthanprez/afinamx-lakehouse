@@ -1,16 +1,16 @@
 import json
-import logging
 import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+from src.common.logger import get_logger
 from src.ingest.config import BRONZE_DIR
 from src.ingest.exceptions import StorageError
 from src.ingest.storage.base import BaseStorageWriter
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LocalStorageWriter(BaseStorageWriter):
@@ -18,7 +18,10 @@ class LocalStorageWriter(BaseStorageWriter):
 
     def __init__(self, base_dir: Optional[Union[str, Path]] = None) -> None:
         self.base_dir = Path(base_dir) if base_dir else Path(BRONZE_DIR)
-        logger.debug("LocalStorageWriter initialized with base_dir: %s", self.base_dir)
+        logger.debug(
+            "LocalStorageWriter initialized",
+            extra={"base_dir": str(self.base_dir)},
+        )
 
     def write(
         self,
@@ -36,9 +39,12 @@ class LocalStorageWriter(BaseStorageWriter):
         target_file_path = target_dir / filename
 
         logger.info(
-            "Writing local dataset '%s' to path: %s",
-            dataset_name,
-            target_file_path,
+            "Writing local dataset to path",
+            extra={
+                "dataset_name": dataset_name,
+                "target_file_path": str(target_file_path),
+                "execution_date": execution_date.isoformat(),
+            },
         )
 
         # 2. True Atomic Write via Temporary File + Atomic Rename
@@ -81,11 +87,29 @@ class LocalStorageWriter(BaseStorageWriter):
 
             # OS atomic swap: replaces target_file_path instantly
             os.replace(temp_path, target_file_path)
-            logger.info("Successfully wrote local file: %s", target_file_path)
+            logger.info(
+                "Successfully wrote local file",
+                extra={
+                    "dataset_name": dataset_name,
+                    "target_file_path": str(target_file_path),
+                },
+            )
 
         except (OSError, PermissionError, TypeError, ValueError) as e:
             error_msg = f"Failed to write local dataset '{dataset_name}' to {target_file_path if 'target_file_path' in locals() else target_dir}: {e}"
-            logger.error(error_msg, exc_info=True)
+            logger.error(
+                "Failed to write local dataset",
+                exc_info=True,
+                extra={
+                    "dataset_name": dataset_name,
+                    "target_file_path": str(
+                        target_file_path
+                        if "target_file_path" in locals()
+                        else target_dir
+                    ),
+                    "error": str(e),
+                },
+            )
             # Wrap low-level I/O or serialization error into custom StorageError
             raise StorageError(error_msg) from e
 
@@ -93,7 +117,14 @@ class LocalStorageWriter(BaseStorageWriter):
             error_msg = (
                 f"Unexpected failure writing local dataset '{dataset_name}': {e}"
             )
-            logger.error(error_msg, exc_info=True)
+            logger.error(
+                "Unexpected failure writing local dataset",
+                exc_info=True,
+                extra={
+                    "dataset_name": dataset_name,
+                    "error": str(e),
+                },
+            )
             raise StorageError(error_msg) from e
 
         return str(target_file_path.resolve())

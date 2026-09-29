@@ -51,6 +51,23 @@ def test_config_prod_mode_switch(monkeypatch: pytest.MonkeyPatch) -> None:
     importlib.reload(config)
 
 
+def test_config_log_level_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify LOG_LEVEL defaults to INFO and honors environment overrides."""
+    # 1. Default level
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    importlib.reload(config)
+    assert config.LOG_LEVEL == "INFO"
+
+    # 2. Override level
+    monkeypatch.setenv("LOG_LEVEL", "debug")
+    importlib.reload(config)
+    assert config.LOG_LEVEL == "DEBUG"
+
+    # Cleanup
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    importlib.reload(config)
+
+
 # -----------------------------------------------------------------------------
 # 2. LOCAL DIRECTORY INITIALIZATION TESTS
 # -----------------------------------------------------------------------------

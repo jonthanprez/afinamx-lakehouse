@@ -1,16 +1,16 @@
 import json
-import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
+from src.common.logger import get_logger
 from src.ingest.config import S3_BUCKET_NAME
 from src.ingest.exceptions import StorageError
 from src.ingest.storage.base import BaseStorageWriter
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class S3StorageWriter(BaseStorageWriter):
@@ -30,7 +30,8 @@ class S3StorageWriter(BaseStorageWriter):
         self.bucket_name = bucket_name or S3_BUCKET_NAME
         self.s3_client = boto3.client("s3")
         logger.debug(
-            "S3StorageWriter initialized with bucket_name: %s", self.bucket_name
+            "S3StorageWriter initialized",
+            extra={"bucket_name": self.bucket_name},
         )
 
     def write(
@@ -55,7 +56,16 @@ class S3StorageWriter(BaseStorageWriter):
         s3_key = f"bronze/{dataset_name}/{hive_partition}/{filename}"
         s3_uri = f"s3://{self.bucket_name}/{s3_key}"
 
-        logger.info("Writing dataset '%s' to S3 path: %s", dataset_name, s3_uri)
+        logger.info(
+            "Writing dataset to S3",
+            extra={
+                "dataset_name": dataset_name,
+                "s3_uri": s3_uri,
+                "bucket_name": self.bucket_name,
+                "s3_key": s3_key,
+                "execution_date": execution_date.isoformat(),
+            },
+        )
 
         # 2. Serialize to UTF-8 encoded byte array
         if hasattr(payload, "model_dump_json"):
@@ -79,15 +89,43 @@ class S3StorageWriter(BaseStorageWriter):
                 Body=json_bytes,
                 ContentType="application/json; charset=utf-8",
             )
-            logger.info("Successfully wrote S3 object: %s", s3_uri)
+            logger.info(
+                "Successfully wrote S3 object",
+                extra={
+                    "dataset_name": dataset_name,
+                    "s3_uri": s3_uri,
+                    "bucket_name": self.bucket_name,
+                    "s3_key": s3_key,
+                },
+            )
         except (ClientError, BotoCoreError) as e:
             error_msg = f"Critical failure writing object to AWS S3 ({s3_uri}): {e}"
-            logger.error(error_msg, exc_info=True)
+            logger.error(
+                "Critical failure writing object to AWS S3",
+                exc_info=True,
+                extra={
+                    "dataset_name": dataset_name,
+                    "s3_uri": s3_uri,
+                    "bucket_name": self.bucket_name,
+                    "s3_key": s3_key,
+                    "error": str(e),
+                },
+            )
             # Re-raise wrapped in our custom StorageError
             raise StorageError(error_msg) from e
         except Exception as e:
             error_msg = f"Unexpected failure writing dataset '{dataset_name}' to S3 ({s3_uri}): {e}"
-            logger.error(error_msg, exc_info=True)
+            logger.error(
+                "Unexpected failure writing dataset to S3",
+                exc_info=True,
+                extra={
+                    "dataset_name": dataset_name,
+                    "s3_uri": s3_uri,
+                    "bucket_name": self.bucket_name,
+                    "s3_key": s3_key,
+                    "error": str(e),
+                },
+            )
             raise StorageError(error_msg) from e
 
         return s3_uri

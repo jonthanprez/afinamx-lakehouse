@@ -6,12 +6,12 @@ incremental state of the `order_id` and the persistence of the reusable customer
 
 from datetime import datetime, timezone
 import json
-import logging
 from pathlib import Path
 import random
 from typing import Any, Dict, List, Optional
 from faker import Faker
 
+from src.common.logger import get_logger, setup_logging
 from src.ingest.config import (
     WOOCOMMERCE_CUSTOMERS_FILE,
     WOOCOMMERCE_STATE_FILE,
@@ -23,7 +23,7 @@ from src.ingest.woocommerce.products import (
     PRODUCTS_CATALOG,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 fake = Faker("es_MX")
 
 DEFAULT_START_ORDER_ID = 1000
@@ -49,9 +49,11 @@ class WooCommerceDataSimulator:
         self.returning_customer_ratio = returning_customer_ratio
 
         logger.info(
-            "Initializing WooCommerceDataSimulator (Pool Size: %d, Returning Ratio: %.2f)",
-            self.customer_pool_size,
-            self.returning_customer_ratio,
+            "Initializing WooCommerceDataSimulator",
+            extra={
+                "customer_pool_size": self.customer_pool_size,
+                "returning_customer_ratio": self.returning_customer_ratio,
+            },
         )
 
         # Load or initialize persistent customer pool
@@ -78,22 +80,26 @@ class WooCommerceDataSimulator:
                 raw_pool = json.loads(self.customers_file.read_text(encoding="utf-8"))
                 pool = [Customer.model_validate(c) for c in raw_pool]
                 logger.info(
-                    "Customer pool loaded successfully (%d records from %s)",
-                    len(pool),
-                    self.customers_file,
+                    "Customer pool loaded successfully",
+                    extra={
+                        "pool_size": len(pool),
+                        "customers_file": str(self.customers_file),
+                    },
                 )
                 return pool
             except (json.JSONDecodeError, OSError, ValueError) as err:
                 logger.warning(
-                    "Error reading customer file %s. Regenerating new pool. Details: %s",
-                    self.customers_file,
-                    err,
+                    "Error reading customer file. Regenerating new pool",
                     exc_info=True,
+                    extra={
+                        "customers_file": str(self.customers_file),
+                        "error": str(err),
+                    },
                 )
 
         logger.info(
-            "Cold Start: Generating initial pool of %d customers with Faker...",
-            self.customer_pool_size,
+            "Cold Start: Generating initial customer pool with Faker",
+            extra={"customer_pool_size": self.customer_pool_size},
         )
         pool = [
             self._generate_single_customer(cid)
@@ -111,16 +117,22 @@ class WooCommerceDataSimulator:
         )
         temp_file.replace(self.customers_file)
         logger.debug(
-            "Customer pool atomically saved (%d registered customers)", len(pool)
+            "Customer pool saved atomically",
+            extra={
+                "pool_size": len(pool),
+                "customers_file": str(self.customers_file),
+            },
         )
 
     def _get_last_order_id(self) -> int:
         """Reads the last persisted order_id from state storage."""
         if not self.state_file.exists():
             logger.info(
-                "State file not found (%s). Setting initial order_id: %d",
-                self.state_file,
-                DEFAULT_START_ORDER_ID,
+                "State file not found. Setting initial order_id",
+                extra={
+                    "state_file": str(self.state_file),
+                    "default_start_order_id": DEFAULT_START_ORDER_ID,
+                },
             )
             return DEFAULT_START_ORDER_ID
 
@@ -128,15 +140,19 @@ class WooCommerceDataSimulator:
             raw_state = json.loads(self.state_file.read_text(encoding="utf-8"))
             state = SimulatorState.model_validate(raw_state)
             logger.info(
-                "Last order_id recovered from metadata: %d", state.last_order_id
+                "Last order_id recovered from metadata",
+                extra={"last_order_id": state.last_order_id},
             )
             return state.last_order_id
         except (json.JSONDecodeError, OSError, ValueError) as err:
             logger.warning(
-                "Error reading state file %s. Resetting order_id to %d. Details: %s",
-                self.state_file,
-                DEFAULT_START_ORDER_ID,
-                err,
+                "Error reading state file. Resetting order_id",
+                exc_info=True,
+                extra={
+                    "state_file": str(self.state_file),
+                    "default_start_order_id": DEFAULT_START_ORDER_ID,
+                    "error": str(err),
+                },
             )
             return DEFAULT_START_ORDER_ID
 
@@ -149,7 +165,13 @@ class WooCommerceDataSimulator:
         temp_file = self.state_file.with_suffix(".tmp")
         temp_file.write_text(state.model_dump_json(indent=2), encoding="utf-8")
         temp_file.replace(self.state_file)
-        logger.info("Checkpoint updated successfully: last_order_id = %d", last_id)
+        logger.info(
+            "Checkpoint updated successfully",
+            extra={
+                "last_order_id": last_id,
+                "state_file": str(self.state_file),
+            },
+        )
 
     def _select_or_create_customer(self) -> Customer:
         """Selects an existing customer from the pool or dynamically creates a new one."""
@@ -163,9 +185,11 @@ class WooCommerceDataSimulator:
         self._save_customer_pool(self.customer_pool)
 
         logger.debug(
-            "New customer registered dynamically: ID %d (%s)",
-            new_id,
-            new_customer.email,
+            "New customer registered dynamically",
+            extra={
+                "customer_id": new_id,
+                "email": new_customer.email,
+            },
         )
         return new_customer
 
@@ -181,7 +205,10 @@ class WooCommerceDataSimulator:
         Returns:
             List of generated and validated Order dictionaries matching WooCommerce schema.
         """
-        logger.info("Starting order batch simulation (%d orders)...", count)
+        logger.info(
+            "Starting order batch simulation",
+            extra={"count": count, "start_order_id": start_order_id},
+        )
         if start_order_id is not None:
             current_order_id = start_order_id - 1
         else:
@@ -249,10 +276,12 @@ class WooCommerceDataSimulator:
             self._last_order_id = current_order_id
 
         logger.info(
-            "Batch completed successfully. Generated %d orders (IDs: %d to %d)",
-            len(orders),
-            current_order_id - count + 1,
-            current_order_id,
+            "Batch simulation completed successfully",
+            extra={
+                "records_count": len(orders),
+                "start_order_id": current_order_id - count + 1,
+                "end_order_id": current_order_id,
+            },
         )
         return orders
 
@@ -262,10 +291,7 @@ class WooCommerceDataSimulator:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
-    )
+    setup_logging(level="INFO")
 
     simulator = WooCommerceDataSimulator()
     batch = simulator.generate_orders(num_orders=3)

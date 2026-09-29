@@ -6,16 +6,21 @@ and implements enterprise resilience patterns:
 and 4. Auditability.
 """
 
-import logging
-import uuid
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from src.common.logger import get_logger
 from src.ingest import config
+from src.ingest.exceptions import (
+    StorageError,
+    WooCommerceAPIError,
+    WooCommerceCircuitBreakerError,
+)
 from src.ingest.models import (
     BronzeEnvelope,
     ExtractedRange,
@@ -26,13 +31,8 @@ from src.ingest.storage.base import BaseStorageWriter
 from src.ingest.storage.factory import StorageWriterFactory
 from src.ingest.woocommerce.data_simulator import WooCommerceDataSimulator
 from src.ingest.woocommerce.state_manager import WooCommerceStateManager
-from src.ingest.exceptions import (
-    WooCommerceCircuitBreakerError,
-    WooCommerceAPIError,
-    StorageError,
-)
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class WooCommerceAPIClient:
@@ -86,8 +86,12 @@ class WooCommerceAPIClient:
         # Fail-Fast Circuit Breaker Guard Check
         if consecutive_failures >= self.max_circuit_failures:
             logger.critical(
-                f"CIRCUIT BREAKER OPEN in State ({consecutive_failures}/{self.max_circuit_failures} failures). "
-                "Aborting execution without firing network requests."
+                "Circuit breaker open in state. Aborting execution",
+                extra={
+                    "consecutive_failures": consecutive_failures,
+                    "max_circuit_failures": self.max_circuit_failures,
+                    "state_file": str(self.state_manager.state_file_path),
+                },
             )
             raise WooCommerceCircuitBreakerError(
                 f"Circuit breaker open due to {consecutive_failures} historical failures. "
@@ -95,9 +99,14 @@ class WooCommerceAPIClient:
             )
 
         logger.info(
-            f"Starting WooCommerce ingestion [ID: {exec_id}]. "
-            f"Source: {'Local Simulator' if self.use_simulator else 'Real API'}. "
-            f"Storage: {self.storage_writer.__class__.__name__} | Watermark ID: {last_order_id}"
+            "Starting WooCommerce ingestion",
+            extra={
+                "execution_id": exec_id,
+                "source": "simulator" if self.use_simulator else "real_api",
+                "storage_writer": self.storage_writer.__class__.__name__,
+                "last_order_id": last_order_id,
+                "batch_size": batch_size,
+            },
         )
 
         # 2. Extract Data according to Data Provider Switch
@@ -116,13 +125,25 @@ class WooCommerceAPIClient:
             # Persist failure counter in state file
             failures = self.state_manager.register_failure(str(e))
             logger.error(
-                f"Ingestion task failed. Updated persistent failure counter to: {failures}"
+                "Ingestion task extraction phase failed",
+                exc_info=True,
+                extra={
+                    "execution_id": exec_id,
+                    "consecutive_failures": failures,
+                    "error": str(e),
+                },
             )
             raise
 
         # Handle Empty Result
         if not raw_orders:
-            logger.info(f"No new orders found beyond ID {last_order_id}.")
+            logger.info(
+                "No new orders found beyond watermark",
+                extra={
+                    "execution_id": exec_id,
+                    "last_order_id": last_order_id,
+                },
+            )
             return {
                 "status": "SKIPPED",
                 "execution_id": exec_id,
@@ -161,10 +182,17 @@ class WooCommerceAPIClient:
             )
         except Exception as e:
             error_msg = f"Failed to persist payload to bronze storage ({self.storage_writer.__class__.__name__}): {e}"
-            logger.error(error_msg)
             failures = self.state_manager.register_failure(error_msg)
             logger.error(
-                f"Ingestion storage phase failed. Updated persistent failure counter to: {failures}"
+                "Failed to persist payload to bronze storage",
+                exc_info=True,
+                extra={
+                    "execution_id": exec_id,
+                    "storage_writer": self.storage_writer.__class__.__name__,
+                    "target_filename": filename,
+                    "consecutive_failures": failures,
+                    "error": str(e),
+                },
             )
             raise StorageError(error_msg) from e
 
@@ -177,7 +205,13 @@ class WooCommerceAPIClient:
         )
 
         logger.info(
-            f"Ingestion finished successfully. {len(raw_orders)} orders stored in: {storage_result}"
+            "Ingestion finished successfully",
+            extra={
+                "execution_id": exec_id,
+                "records_ingested": len(raw_orders),
+                "last_order_id": new_last_id,
+                "storage_location": storage_result,
+            },
         )
 
         return {
@@ -192,7 +226,10 @@ class WooCommerceAPIClient:
         self, last_order_id: int, count: int
     ) -> Tuple[List[Dict[str, Any]], int, Optional[str]]:
         """Generates synthetic orders using the local simulator."""
-        logger.info(f"Generating {count} simulated orders after ID={last_order_id}...")
+        logger.info(
+            "Generating simulated orders",
+            extra={"count": count, "last_order_id": last_order_id},
+        )
         orders = self.simulator.generate_orders_batch(
             start_order_id=last_order_id + 1, count=count
         )
@@ -230,7 +267,10 @@ class WooCommerceAPIClient:
             getattr(config, "WOOCOMMERCE_CONSUMER_SECRET", ""),
         )
 
-        logger.info(f"Querying WooCommerce API: GET {endpoint} | params={params}")
+        logger.info(
+            "Querying WooCommerce API",
+            extra={"endpoint": endpoint, "params": params},
+        )
 
         try:
             response = self.http_session.get(
@@ -248,12 +288,20 @@ class WooCommerceAPIClient:
             error_msg = (
                 f"HTTP request failed against WooCommerce endpoint [{endpoint}]: {e}"
             )
-            logger.error(error_msg)
+            logger.error(
+                "HTTP request failed against WooCommerce endpoint",
+                exc_info=True,
+                extra={"endpoint": endpoint, "error": str(e)},
+            )
             raise WooCommerceAPIError(error_msg) from e
 
         except (ValueError, json.JSONDecodeError) as e:
             error_msg = f"Failed to parse JSON response from WooCommerce endpoint [{endpoint}]: {e}"
-            logger.error(error_msg)
+            logger.error(
+                "Failed to parse JSON response from WooCommerce endpoint",
+                exc_info=True,
+                extra={"endpoint": endpoint, "error": str(e)},
+            )
             raise WooCommerceAPIError(error_msg) from e
 
         # Disambiguate orders with identical second-timestamps using order ID

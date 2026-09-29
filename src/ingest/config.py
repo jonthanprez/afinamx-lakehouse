@@ -54,7 +54,13 @@ WOOCOMMERCE_CUSTOMERS_FILE = WOOCOMMERCE_METADATA_DIR / "customers.json"
 
 
 # ------------------------------------------------------------------------------
-# 5. ENVIRONMENT INITIALIZATION
+# 5. LOGGING CONFIGURATION
+# ------------------------------------------------------------------------------
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+
+# ------------------------------------------------------------------------------
+# 6. ENVIRONMENT INITIALIZATION
 # ------------------------------------------------------------------------------
 def ensure_local_directories() -> None:
     """Create base directory tree for local DEV environment."""

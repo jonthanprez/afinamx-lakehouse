@@ -3,15 +3,15 @@
 Dynamically switches between local file system storage (DEV) and AWS S3 (PROD).
 """
 
-import logging
 from typing import Optional
 
+from src.common.logger import get_logger
 from src.ingest import config
 from src.ingest.storage.base import BaseStorageWriter
 from src.ingest.storage.local_writer import LocalStorageWriter
 from src.ingest.storage.s3_writer import S3StorageWriter
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class StorageWriterFactory:
@@ -31,7 +31,10 @@ class StorageWriterFactory:
         raw_target = storage_type or config.ENVIRONMENT
         stype = raw_target.strip().lower()
 
-        logger.info(f"Resolving StorageWriter for target: '{stype}'")
+        logger.info(
+            "Resolving StorageWriter for target",
+            extra={"storage_type": stype, "raw_target": raw_target},
+        )
 
         if stype in ["local", "dev"]:
             return LocalStorageWriter(base_dir=config.BRONZE_DIR)

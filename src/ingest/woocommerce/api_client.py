@@ -189,7 +189,7 @@ class WooCommerceAPIClient:
                 extra={
                     "execution_id": exec_id,
                     "storage_writer": self.storage_writer.__class__.__name__,
-                    "filename": filename,
+                    "target_filename": filename,
                     "consecutive_failures": failures,
                     "error": str(e),
                 },

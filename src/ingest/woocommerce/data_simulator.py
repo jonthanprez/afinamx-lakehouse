@@ -13,10 +13,19 @@ from faker import Faker
 
 from src.common.logger import get_logger, setup_logging
 from src.ingest.config import (
+    SIMULATOR_ANOMALY_RATE,
+    SIMULATOR_ENABLE_ANOMALIES,
     WOOCOMMERCE_CUSTOMERS_FILE,
     WOOCOMMERCE_STATE_FILE,
 )
-from src.ingest.models import Customer, LineItem, Order, SimulatorState
+from src.ingest.models import (
+    Customer,
+    IngestionState,
+    LineItem,
+    Order,
+    SimulatorState,
+)
+from src.ingest.woocommerce.anomalies import AnomalyInjector
 from src.ingest.woocommerce.products import (
     METHODS_PAYMENT,
     ORDER_STATUS_CONFIG,
@@ -36,23 +45,50 @@ class WooCommerceDataSimulator:
         self,
         customer_pool_size: int = 50,
         returning_customer_ratio: float = 0.70,
+        enable_anomalies: Optional[bool] = None,
+        anomaly_rate: Optional[float] = None,
+        enabled_anomalies: Optional[List[str]] = None,
     ) -> None:
         """Initializes the WooCommerce simulator.
 
         Args:
             customer_pool_size: Initial number of customers to generate in the pool.
             returning_customer_ratio: Probability (0.0 to 1.0) of reusing an existing customer.
+            enable_anomalies: Flag to inject data quality defects. Defaults to SIMULATOR_ENABLE_ANOMALIES (True).
+            anomaly_rate: Corruption probability rate. Defaults to SIMULATOR_ANOMALY_RATE (0.15).
+            enabled_anomalies: Specific list of anomalies to enable. Defaults to all supported anomalies.
         """
         self.state_file = Path(WOOCOMMERCE_STATE_FILE)
         self.customers_file = Path(WOOCOMMERCE_CUSTOMERS_FILE)
         self.customer_pool_size = customer_pool_size
         self.returning_customer_ratio = returning_customer_ratio
 
+        if enable_anomalies is not None:
+            self.enable_anomalies = enable_anomalies
+        else:
+            self.enable_anomalies = SIMULATOR_ENABLE_ANOMALIES
+
+        self.anomaly_rate = (
+            anomaly_rate if anomaly_rate is not None else SIMULATOR_ANOMALY_RATE
+        )
+        self.enabled_anomalies = enabled_anomalies
+
+        self.anomaly_injector = (
+            AnomalyInjector(
+                anomaly_rate=self.anomaly_rate,
+                enabled_anomalies=self.enabled_anomalies,
+            )
+            if self.enable_anomalies
+            else None
+        )
+
         logger.info(
             "Initializing WooCommerceDataSimulator",
             extra={
                 "customer_pool_size": self.customer_pool_size,
                 "returning_customer_ratio": self.returning_customer_ratio,
+                "enable_anomalies": self.enable_anomalies,
+                "anomaly_rate": self.anomaly_rate,
             },
         )
 
@@ -138,7 +174,10 @@ class WooCommerceDataSimulator:
 
         try:
             raw_state = json.loads(self.state_file.read_text(encoding="utf-8"))
-            state = SimulatorState.model_validate(raw_state)
+            if "last_execution_timestamp" in raw_state:
+                state = IngestionState.model_validate(raw_state)
+            else:
+                state = SimulatorState.model_validate(raw_state)
             logger.info(
                 "Last order_id recovered from metadata",
                 extra={"last_order_id": state.last_order_id},
@@ -158,9 +197,13 @@ class WooCommerceDataSimulator:
 
     def _save_last_order_id(self, last_id: int) -> None:
         """Atomically updates the processed order_id checkpoint."""
-        state = SimulatorState(
+        now_iso = datetime.now(timezone.utc).isoformat()
+        state = IngestionState(
+            dataset_name="woocommerce",
             last_order_id=last_id,
-            updated_at=datetime.now(timezone.utc).isoformat(),
+            last_updated_at=now_iso,
+            last_execution_timestamp=now_iso,
+            last_execution_status="SUCCESS",
         )
         temp_file = self.state_file.with_suffix(".tmp")
         temp_file.write_text(state.model_dump_json(indent=2), encoding="utf-8")
@@ -194,16 +237,20 @@ class WooCommerceDataSimulator:
         return new_customer
 
     def generate_orders_batch(
-        self, start_order_id: Optional[int] = None, count: int = 10
+        self,
+        start_order_id: Optional[int] = None,
+        count: int = 10,
+        enable_anomalies: Optional[bool] = None,
     ) -> List[Dict[str, Any]]:
-        """Generates a batch of validated simulated WooCommerce API orders.
+        """Generates a batch of simulated WooCommerce API orders.
 
         Args:
             start_order_id: Explicit starting order ID. If None, continues from last checkpoint.
             count: Number of order payloads to simulate.
+            enable_anomalies: Explicitly enable/disable anomaly injection for this batch.
 
         Returns:
-            List of generated and validated Order dictionaries matching WooCommerce schema.
+            List of generated Order dictionaries matching WooCommerce schema (with anomalies if enabled).
         """
         logger.info(
             "Starting order batch simulation",
@@ -275,19 +322,31 @@ class WooCommerceDataSimulator:
         else:
             self._last_order_id = current_order_id
 
+        # 4. Anomaly and Chaos Injection (Dirty by Default)
+        should_inject = (
+            enable_anomalies if enable_anomalies is not None else self.enable_anomalies
+        )
+        if should_inject and self.anomaly_injector is not None:
+            orders = self.anomaly_injector.inject(orders)
+
         logger.info(
             "Batch simulation completed successfully",
             extra={
                 "records_count": len(orders),
                 "start_order_id": current_order_id - count + 1,
                 "end_order_id": current_order_id,
+                "anomalies_applied": should_inject,
             },
         )
         return orders
 
-    def generate_orders(self, num_orders: int = 10) -> List[Dict[str, Any]]:
+    def generate_orders(
+        self, num_orders: int = 10, enable_anomalies: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
         """Backward-compatible alias for generating orders."""
-        return self.generate_orders_batch(count=num_orders)
+        return self.generate_orders_batch(
+            count=num_orders, enable_anomalies=enable_anomalies
+        )
 
 
 if __name__ == "__main__":

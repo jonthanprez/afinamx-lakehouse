@@ -42,6 +42,12 @@ class WooCommerceStateManager:
         try:
             with open(self.state_file_path, "r", encoding="utf-8") as f:
                 raw_data = json.load(f)
+                if (
+                    isinstance(raw_data, dict)
+                    and "last_execution_timestamp" not in raw_data
+                    and "updated_at" in raw_data
+                ):
+                    raw_data["last_execution_timestamp"] = raw_data["updated_at"]
                 state = IngestionState.model_validate(raw_data)
                 logger.info(
                     "State loaded successfully",
@@ -102,12 +108,14 @@ class WooCommerceStateManager:
         last_order_id: int,
         last_updated_at: Optional[str] = None,
         status: str = "SUCCESS",
+        force: bool = False,
     ) -> Dict[str, Any]:
         """Atomically updates and persists state after a successful batch ingestion.
 
         :param last_order_id: Highest processed order ID in the batch.
         :param last_updated_at: UTC ISO-8601 timestamp of the latest processed change.
         :param status: Execution operational status ('SUCCESS', 'FAILED', etc.).
+        :param force: If True, allows setting last_order_id backwards (e.g. state reset).
         :return: Updated state dictionary.
         """
         current_state = (
@@ -116,9 +124,9 @@ class WooCommerceStateManager:
             else self._get_default_state()
         )
 
-        # Enforce monotonic cursor advancement
+        # Enforce monotonic cursor advancement unless explicitly forced
         current_max_id = current_state.get("last_order_id", 0)
-        if last_order_id < current_max_id:
+        if not force and last_order_id < current_max_id:
             logger.warning(
                 "Provided last_order_id is smaller than current state",
                 extra={

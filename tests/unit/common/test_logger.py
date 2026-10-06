@@ -1,4 +1,4 @@
-"""Unit tests for structured JSON logging using unittest."""
+"""Unit tests for structured JSON logging in src.common.logger."""
 
 import io
 import json
@@ -47,7 +47,7 @@ class TestJSONLogger(unittest.TestCase):
             extra={
                 "dataset_name": "woocommerce_orders",
                 "records_count": 150,
-                "execution_date": "2026-09-29",
+                "execution_date": "2026-10-06",
             },
         )
 
@@ -56,7 +56,7 @@ class TestJSONLogger(unittest.TestCase):
 
         self.assertEqual(data["dataset_name"], "woocommerce_orders")
         self.assertEqual(data["records_count"], 150)
-        self.assertEqual(data["execution_date"], "2026-09-29")
+        self.assertEqual(data["execution_date"], "2026-10-06")
         self.assertEqual(data["message"], "Batch written to storage")
 
     def test_json_formatter_captures_exception_details(self):

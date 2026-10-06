@@ -60,7 +60,17 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 
 # ------------------------------------------------------------------------------
-# 6. ENVIRONMENT INITIALIZATION
+# 6. SIMULATOR & ANOMALY (CHAOS) CONFIGURATION
+# ------------------------------------------------------------------------------
+USE_SIMULATOR = os.getenv("USE_SIMULATOR", "true").lower() in ("true", "1", "yes")
+SIMULATOR_ENABLE_ANOMALIES = os.getenv(
+    "SIMULATOR_ENABLE_ANOMALIES", "true"
+).lower() in ("true", "1", "yes")
+SIMULATOR_ANOMALY_RATE = float(os.getenv("SIMULATOR_ANOMALY_RATE", "0.15"))
+
+
+# ------------------------------------------------------------------------------
+# 7. ENVIRONMENT INITIALIZATION
 # ------------------------------------------------------------------------------
 def ensure_local_directories() -> None:
     """Create base directory tree for local DEV environment."""

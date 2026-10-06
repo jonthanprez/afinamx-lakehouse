@@ -1,0 +1,29 @@
+[project]
+name = "afinamx-lakehouse"
+version = "0.1.0"
+description = "Arquitectura Data Lakehouse con Airflow, dbt y MinIO / S3"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3",
+    "faker",
+    "psycopg2-binary",
+    "pydantic>=2.7.0",
+    "requests",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "pre-commit>=4.6.2",
+    "pytest",
+    "ruff==0.9.9",
+    "sqlfluff",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

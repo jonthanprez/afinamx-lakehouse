@@ -57,14 +57,19 @@ La variable nativa de Airflow `_PIP_ADDITIONAL_REQUIREMENTS` descarga las librer
 En nuestra arquitectura hemos eliminado esa variable. En su lugar, hemos implementado una compilación de imagen local a través del `Dockerfile` aprovechando las capas de caché de Docker.
 
 ### ¿Cómo agregar una nueva librería a Airflow sin tiempos de espera infinitos?
-No edites directamente el `requirements.txt`. El proyecto utiliza `pip-tools` para garantizar reproducibilidad en los entornos híbridos (Dev/Prod). Sigue este flujo vertical:
+No edites directamente archivos de bloqueo. El proyecto utiliza `uv` y el estándar moderno `pyproject.toml` para garantizar resolución instantánea y reproducibilidad en los entornos híbridos (Dev/Prod). Sigue este flujo:
 
-1. Agrega la nueva librería en el archivo `requirements.in` (ej. `boto3`).
-2. Compila las dependencias exactas ejecutando en tu terminal local (requiere tener `pip-tools` instalado en tu entorno local):
+1. Agrega la nueva librería con `uv` (esto actualizará automáticamente `pyproject.toml` y `uv.lock` en milisegundos):
    ```bash
-   pip-compile requirements.in
+   uv add boto3
    ```
-   Esto generará automáticamente un `requirements.txt` seguro y unificado.
+   *(Si es una herramienta exclusiva de desarrollo o pruebas, usa: `uv add --group dev pytest`).*
+
+2. Sincroniza tu entorno local si lo necesitas:
+   ```bash
+   uv sync
+   ```
+
 3. Reconstruye tu imagen de Airflow ejecutando:
    ```bash
    docker compose build
@@ -75,7 +80,7 @@ No edites directamente el `requirements.txt`. El proyecto utiliza `pip-tools` pa
    ```
 
 ### ¿Por qué esto es más rápido?
-Al tener el comando `COPY requirements.txt` antes de instalar en el `Dockerfile`, Docker almacena el paso de instalación en su caché. Si reinicias los contenedores sin haber modificado `requirements.txt`, Docker saltará la instalación y tus contenedores arrancarán en segundos.
+`uv` está escrito en Rust y resuelve e instala dependencias de 10x a 100x más rápido que `pip` y `pip-tools`. Además, al inyectar el binario compilado de `uv` en el `Dockerfile` y copiar `pyproject.toml` y `uv.lock`, Docker aprovecha la caché de capas y la velocidad extrema de `uv pip install`, construyendo los contenedores en cuestión de segundos.
 
 ---
 

@@ -1,9 +1,0 @@
-faker
-psycopg2-binary
-ruff
-black
-pytest
-sqlfluff
-boto3
-requests
-pydantic>=2.7.0

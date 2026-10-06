@@ -51,31 +51,43 @@ Para operar este ecosistema de desarrollo, utiliza los siguientes comandos en tu
 ## 3. Gestión de Dependencias y Librerías en Airflow 📦
 
 ### El Problema
-La variable nativa de Airflow `_PIP_ADDITIONAL_REQUIREMENTS` descarga las librerías cada vez que el contenedor se reinicia, volviendo el levantamiento local extremadamente lento.
+La variable nativa de Airflow `_PIP_ADDITIONAL_REQUIREMENTS` descarga las librerías cada vez que el contenedor se reinicia, volviendo el levantamiento local extremadamente lento. Además, herramientas tradicionales como `pip-tools` tardan decenas de segundos en resolver dependencias.
 
 ### La Solución Arquitectónica
-En nuestra arquitectura hemos eliminado esa variable. En su lugar, hemos implementado una compilación de imagen local a través del `Dockerfile` aprovechando las capas de caché de Docker.
+En nuestra arquitectura hemos adoptado **`uv`** (el gestor ultrarrápido en Rust de Astral) junto con el estándar moderno **PEP 621 (`pyproject.toml`)**.
+La imagen se compila localmente mediante el `Dockerfile` inyectando el binario oficial de `uv`, aprovechando tanto las capas de caché de Docker como la velocidad extrema de resolución e instalación.
 
 ### ¿Cómo agregar una nueva librería a Airflow sin tiempos de espera infinitos?
-No edites directamente el `requirements.txt`. El proyecto utiliza `pip-tools` para garantizar reproducibilidad en los entornos híbridos (Dev/Prod). Sigue este flujo vertical:
+No edites directamente archivos de bloqueo. Sigue este flujo simple con `uv`:
 
-1. Agrega la nueva librería en el archivo `requirements.in` (ej. `boto3`).
-2. Compila las dependencias exactas ejecutando en tu terminal local (requiere tener `pip-tools` instalado en tu entorno local):
+1. **Para librerías de producción / Airflow:**
+   Agrega la nueva librería con `uv` (esto actualizará automáticamente `pyproject.toml` y `uv.lock` en milisegundos):
    ```bash
-   pip-compile requirements.in
+   uv add boto3
    ```
-   Esto generará automáticamente un `requirements.txt` seguro y unificado.
-3. Reconstruye tu imagen de Airflow ejecutando:
+
+2. **Para librerías de desarrollo o pruebas locales:**
+   ```bash
+   uv add --group dev pytest-mock
+   ```
+
+3. **Sincronizar tu entorno virtual local (`.venv/`):**
+   ```bash
+   uv sync
+   ```
+
+4. **Reconstruir tu imagen de Airflow en Docker:**
    ```bash
    docker compose build
    ```
-   o bien, directamente:
+   *O bien, directamente:*
    ```bash
    docker compose up -d --build
    ```
 
 ### ¿Por qué esto es más rápido?
-Al tener el comando `COPY requirements.txt` antes de instalar en el `Dockerfile`, Docker almacena el paso de instalación en su caché. Si reinicias los contenedores sin haber modificado `requirements.txt`, Docker saltará la instalación y tus contenedores arrancarán en segundos.
+* **10x - 100x más rápido:** `uv` resuelve e instala dependencias en cuestión de milisegundos.
+* **Caché de Docker optimizada:** Al inyectar el binario compilado de `uv` en el `Dockerfile` y copiar `pyproject.toml` y `uv.lock`, Docker salta la instalación si no cambiaron las dependencias y, si cambian, las instala en segundos apuntando al entorno de Airflow (`/home/airflow/.local`).
 
 ---
 
@@ -100,6 +112,7 @@ Este repositorio implementa un enfoque de **Seguridad a la Izquierda (*Shift-Lef
 
 | Herramienta | Función | Alcance |
 | :--- | :--- | :--- |
+| **uv** | Gestor de paquetes, entornos virtuales y ejecución de herramientas en Rust. | Resuelve dependencias, sincroniza el entorno y ejecuta linters/tests (`uv run`). |
 | **Ruff** | Linter y formateador ultrarrápido para Python (sustituye Flake8, Isort, Black, Bandit). | Formateo estricto, sintaxis, importaciones no usadas y reglas de estilo en todo el repositorio. |
 | **Gitleaks** | Detector automatizado de secretos e API Keys. | Previene la fuga accidental de credenciales al historial de Git. |
 | **Pytest** | Framework de pruebas unitarias y de integración. | Ejecuta la validación de integridad de DAGs y la suite completa de pruebas del motor de ingesta. |
@@ -112,17 +125,17 @@ Antes de que un `git commit` sea confirmado en tu máquina, **`pre-commit`** eje
 
 #### Configuración e instalación inicial (solo una vez):
 ```bash
-# 1. Instalar pre-commit en tu PC / entorno local
-pip install pre-commit
+# 1. Instalar y sincronizar dependencias de desarrollo con uv
+uv sync
 
 # 2. Activar los hooks de Git en el proyecto
-pre-commit install
+uv run pre-commit install
 ```
 
 #### Ejecución manual (opcional):
 Si deseas formatear o validar todo el proyecto sin hacer un commit:
 ```bash
-pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 
 ---
@@ -168,8 +181,19 @@ tests/
    * Asegura que los DAGs carguen limpiamente en la `DagBag` de Airflow sin ciclos ni errores de importación.
 
 #### Comandos de Ejecución de Pruebas:
-Para ejecutar las pruebas dentro del entorno hermético de Docker:
 
+##### Opción A: Pruebas unitarias ultrarrápidas en local (Sin levantar Docker ⚡)
+Para desarrollar lógica de negocio y probar el motor de ingesta sin consumir RAM de contenedores:
+```bash
+# Ejecutar todas las pruebas unitarias locales (70+ tests en < 0.5s)
+uv run pytest tests/unit/ -v
+
+# Validar formato y linter
+uv run ruff check .
+```
+
+##### Opción B: Pruebas dentro del contenedor de Airflow (Hermético)
+Para probar dentro del entorno exacto de los contenedores o validar los DAGs con Airflow cargado:
 ```bash
 # 1. Ejecutar la suite completa de pruebas
 docker compose exec airflow-webserver pytest tests/ -v

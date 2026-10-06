@@ -17,21 +17,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configurar Python 3.11
-        uses: actions/setup-python@v5
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          version: "latest"
+          enable-cache: true
+
+      - name: Configurar Python 3.11
+        run: uv python install 3.11
 
       - name: Instalar dependencias de Linting
-        run: |
-          python -m pip install --upgrade pip
-          pip install "ruff==0.9.9" pytest sqlfluff
+        run: uv sync --group dev
 
       - name: Validar Formato Python (Ruff)
-        run: ruff format --check .
+        run: uv run ruff format --check .
 
       - name: Ejecutar Linter Python (Ruff)
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Escaneo de Secretos con Gitleaks
         uses: gitleaks/gitleaks-action@v2
@@ -47,16 +49,19 @@ jobs:
       - name: Checkout del código
         uses: actions/checkout@v4
 
-      - name: Configurar Python 3.11
-        uses: actions/setup-python@v5
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          version: "latest"
+          enable-cache: true
+
+      - name: Configurar Python 3.11
+        run: uv python install 3.11
 
       - name: Instalar dependencias de Airflow y pruebas
         run: |
-          python -m pip install --upgrade pip
-          pip install "apache-airflow==2.8.1" pytest -r requirements.txt
+          uv sync --group dev
+          uv pip install "apache-airflow==2.8.1"
 
       - name: Ejecutar Pruebas de Integridad de DAGs (Pytest)
-        run: |
-          python -m pytest tests/ -v
+        run: uv run pytest tests/ -v

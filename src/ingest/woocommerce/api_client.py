@@ -44,6 +44,9 @@ class WooCommerceAPIClient:
         storage_writer: Optional[BaseStorageWriter] = None,
         state_manager: Optional[WooCommerceStateManager] = None,
         max_circuit_failures: int = 5,
+        enable_anomalies: Optional[bool] = None,
+        anomaly_rate: Optional[float] = None,
+        enabled_anomalies: Optional[List[str]] = None,
     ) -> None:
         """Initializes WooCommerce API client."""
         # Switch 1: Data Provider (Simulator vs Real API)
@@ -62,7 +65,15 @@ class WooCommerceAPIClient:
         self.max_circuit_failures = max_circuit_failures
 
         # Local Data Simulator
-        self.simulator = WooCommerceDataSimulator() if self.use_simulator else None
+        self.simulator = (
+            WooCommerceDataSimulator(
+                enable_anomalies=enable_anomalies,
+                anomaly_rate=anomaly_rate,
+                enabled_anomalies=enabled_anomalies,
+            )
+            if self.use_simulator
+            else None
+        )
 
         # Resilient HTTP Session
         self.http_session = self._build_resilient_session()
@@ -72,6 +83,7 @@ class WooCommerceAPIClient:
         batch_size: int = 50,
         execution_id: Optional[str] = None,
         execution_date: Optional[datetime] = None,
+        enable_anomalies: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Orchestrates incremental extraction from checkpoint and persistence to Bronze."""
         exec_id = execution_id or f"exec_{uuid.uuid4().hex[:8]}"
@@ -113,7 +125,9 @@ class WooCommerceAPIClient:
         try:
             if self.use_simulator:
                 raw_orders, new_last_id, max_ts = self._fetch_from_simulator(
-                    last_order_id=last_order_id, count=batch_size
+                    last_order_id=last_order_id,
+                    count=batch_size,
+                    enable_anomalies=enable_anomalies,
                 )
             else:
                 raw_orders, new_last_id, max_ts = self._fetch_from_real_api(
@@ -223,7 +237,10 @@ class WooCommerceAPIClient:
         }
 
     def _fetch_from_simulator(
-        self, last_order_id: int, count: int
+        self,
+        last_order_id: int,
+        count: int,
+        enable_anomalies: Optional[bool] = None,
     ) -> Tuple[List[Dict[str, Any]], int, Optional[str]]:
         """Generates synthetic orders using the local simulator."""
         logger.info(
@@ -231,9 +248,14 @@ class WooCommerceAPIClient:
             extra={"count": count, "last_order_id": last_order_id},
         )
         orders = self.simulator.generate_orders_batch(
-            start_order_id=last_order_id + 1, count=count
+            start_order_id=last_order_id + 1,
+            count=count,
+            enable_anomalies=enable_anomalies,
         )
-        max_id = max((o["id"] for o in orders), default=last_order_id)
+        max_id = max(
+            (o["id"] for o in orders if isinstance(o.get("id"), int)),
+            default=last_order_id,
+        )
         max_ts = max(
             (o.get("date_modified_gmt") for o in orders if o.get("date_modified_gmt")),
             default=None,

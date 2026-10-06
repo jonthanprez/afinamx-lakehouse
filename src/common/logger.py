@@ -35,12 +35,37 @@ STANDARD_LOG_RECORD_ATTRIBUTES = {
 
 def _default_json_serializer(obj: Any) -> Any:
     """Fallback serializer for objects that are not JSON-serializable by default."""
-    if isinstance(obj, (datetime,)):
+    if isinstance(obj, datetime):
         return obj.isoformat()
-    if hasattr(obj, "isoformat"):
-        return obj.isoformat()
-    if hasattr(obj, "__dict__"):
-        return obj.__dict__
+
+    # Handle unittest.mock objects safely without infinite recursion
+    if hasattr(obj, "__class__") and obj.__class__.__module__.startswith(
+        "unittest.mock"
+    ):
+        return str(obj)
+
+    if hasattr(obj, "model_dump") and callable(obj.model_dump):
+        try:
+            res = obj.model_dump()
+            if isinstance(res, (dict, list)):
+                return res
+        except Exception:
+            pass
+
+    if hasattr(obj, "isoformat") and callable(obj.isoformat):
+        try:
+            res = obj.isoformat()
+            if isinstance(res, str):
+                return res
+        except Exception:
+            pass
+
+    if hasattr(obj, "__dict__") and not hasattr(obj, "_mock_return_value"):
+        try:
+            return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
+        except Exception:
+            pass
+
     return str(obj)
 
 

@@ -40,6 +40,7 @@ def state_pipeline_env(tmp_path: Path) -> Dict[str, Any]:
         storage_writer=storage_writer,
         state_manager=state_manager,
         max_circuit_failures=5,
+        enable_anomalies=False,
     )
     if client.simulator:
         client.simulator.state_file = state_file

@@ -37,6 +37,7 @@ def isolated_pipeline_env(tmp_path: Path) -> Dict[str, Any]:
         use_simulator=True,
         storage_writer=storage_writer,
         state_manager=state_manager,
+        enable_anomalies=False,
     )
     # Point simulator state and customer paths to temp directory
     if client.simulator:

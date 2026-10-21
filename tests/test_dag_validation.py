@@ -5,7 +5,7 @@ from airflow.models import DagBag
 @pytest.fixture(scope="module")
 def dagbag():
     """Carga todos los DAGs de la carpeta dags/ en un entorno aislado."""
-    return DagBag(dag_folder="dags/", include_examples=False)
+    return DagBag(dag_folder="dags/")
 
 
 def test_no_import_errors(dagbag):

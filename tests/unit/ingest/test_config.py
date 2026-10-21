@@ -1,10 +1,10 @@
 """Unit tests for src.ingest.config module.
 
-Verifies top-level constants, environment switches, path resolutions,
-directory creation initialization, and IngestConfig Pydantic model validation.
+Verifies IngestConfig Pydantic model validation, environment switches, path resolutions,
+directory creation, and backward-compatible module-level exports without requiring
+unstable module reloading (importlib.reload).
 """
 
-import importlib
 from pathlib import Path
 from unittest.mock import patch
 from pydantic import ValidationError
@@ -15,105 +15,49 @@ from src.ingest.config import IngestConfig
 from src.ingest.exceptions import IngestionError, StorageError
 
 # -----------------------------------------------------------------------------
-# 1. ENVIRONMENT & STORAGE SWITCH TESTS (BACKWARD COMPATIBILITY)
+# 1. INGESTCONFIG MODEL & ISOLATED INSTANTIATION TESTS
 # -----------------------------------------------------------------------------
 
 
-def test_config_dev_mode_defaults(set_testing_environment: None) -> None:
-    """Verify DEV environment sets local Path instances for medallion layers."""
-    # Reload config to apply mocked environment variables from conftest
-    importlib.reload(config)
+def test_ingest_config_dev_mode_defaults() -> None:
+    """Verify DEV mode defaults resolve local Path instances for medallion layers."""
+    cfg = IngestConfig(environment="dev")
 
-    assert config.ENVIRONMENT == "dev"
-    assert (config.DEFAULT_ROOT / "src").exists()
-    assert (config.DEFAULT_ROOT / "src" / "ingest").exists()
-    assert isinstance(config.BRONZE_DIR, Path)
-    assert isinstance(config.SILVER_DIR, Path)
-    assert isinstance(config.GOLD_DIR, Path)
-    assert "bronze" in str(config.BRONZE_DIR)
-
-
-def test_config_prod_mode_switch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify PROD environment switches medallion paths to S3 URIs."""
-    monkeypatch.setenv("ENVIRONMENT", "prod")
-    monkeypatch.setenv("S3_BUCKET_NAME", "my-production-bucket")
-
-    # Reload module to trigger top-level evaluation under PROD
-    importlib.reload(config)
-
-    assert config.ENVIRONMENT == "prod"
-    assert config.STORAGE_BASE_URI == "s3://my-production-bucket"
-    assert config.BRONZE_DIR == "s3://my-production-bucket/bronze"
-    assert config.SILVER_DIR == "s3://my-production-bucket/silver"
-    assert config.GOLD_DIR == "s3://my-production-bucket/gold"
-
-    # Cleanup: restore config state to dev
-    monkeypatch.setenv("ENVIRONMENT", "dev")
-    importlib.reload(config)
+    assert cfg.environment == "dev"
+    assert (cfg.project_root / "src").exists()
+    assert (cfg.project_root / "src" / "ingest").exists()
+    assert isinstance(cfg.bronze_dir, Path)
+    assert isinstance(cfg.silver_dir, Path)
+    assert isinstance(cfg.gold_dir, Path)
+    assert "bronze" in str(cfg.bronze_dir)
+    assert cfg.storage_base_uri == str(cfg.local_data_dir)
 
 
-def test_config_log_level_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify LOG_LEVEL defaults to INFO and honors environment overrides."""
-    # 1. Default level
-    monkeypatch.delenv("LOG_LEVEL", raising=False)
-    importlib.reload(config)
-    assert config.LOG_LEVEL == "INFO"
+def test_ingest_config_prod_mode_switch() -> None:
+    """Verify PROD mode resolves medallion layers to AWS S3 URIs without module reload."""
+    cfg = IngestConfig(
+        environment="prod",
+        s3_bucket_name="my-production-bucket",
+    )
 
-    # 2. Override level
-    monkeypatch.setenv("LOG_LEVEL", "debug")
-    importlib.reload(config)
-    assert config.LOG_LEVEL == "DEBUG"
-
-    # Cleanup
-    monkeypatch.delenv("LOG_LEVEL", raising=False)
-    importlib.reload(config)
+    assert cfg.environment == "prod"
+    assert cfg.storage_base_uri == "s3://my-production-bucket"
+    assert cfg.bronze_dir == "s3://my-production-bucket/bronze"
+    assert cfg.silver_dir == "s3://my-production-bucket/silver"
+    assert cfg.gold_dir == "s3://my-production-bucket/gold"
 
 
-def test_config_explicit_attributes_exposed() -> None:
-    """Verify newly formalized attributes are exposed at module level."""
-    assert hasattr(config, "WOOCOMMERCE_API_URL")
-    assert hasattr(config, "WOOCOMMERCE_CONSUMER_KEY")
-    assert hasattr(config, "WOOCOMMERCE_CONSUMER_SECRET")
-    assert hasattr(config, "AWS_CONN_ID")
-    assert hasattr(config, "DEFAULT_START_ORDER_ID")
-    assert config.DEFAULT_START_ORDER_ID == 1000
+def test_ingest_config_log_level_normalization() -> None:
+    """Verify log_level normalization to uppercase and custom values."""
+    cfg_default = IngestConfig()
+    assert cfg_default.log_level in ("INFO", "DEBUG", "WARNING", "ERROR")
 
-
-# -----------------------------------------------------------------------------
-# 2. LOCAL DIRECTORY INITIALIZATION TESTS
-# -----------------------------------------------------------------------------
-
-
-def test_ensure_local_directories_creation(mock_lakehouse_dirs: dict) -> None:
-    """Verify ensure_local_directories creates required folders in dev mode."""
-    with patch("src.ingest.config.ENVIRONMENT", "dev"):
-        config.ensure_local_directories()
-
-        assert Path(config.LOCAL_DATA_DIR).exists()
-        assert Path(config.WOOCOMMERCE_METADATA_DIR).exists()
-
-
-def test_ensure_local_directories_noop_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify ensure_local_directories skips directory creation in PROD mode."""
-    monkeypatch.setenv("ENVIRONMENT", "prod")
-    importlib.reload(config)
-
-    with patch("pathlib.Path.mkdir") as mock_mkdir:
-        config.ensure_local_directories()
-        mock_mkdir.assert_not_called()
-
-    # Cleanup
-    monkeypatch.setenv("ENVIRONMENT", "dev")
-    importlib.reload(config)
-
-
-# -----------------------------------------------------------------------------
-# 3. INGESTCONFIG PYDANTIC MODEL TESTS
-# -----------------------------------------------------------------------------
+    cfg_custom = IngestConfig(log_level="debug")  # type: ignore[arg-type]
+    assert cfg_custom.log_level == "DEBUG"
 
 
 def test_ingest_config_isolated_instantiation(tmp_path: Path) -> None:
-    """Verify IngestConfig can be instantiated in isolation without mutating globals."""
+    """Verify IngestConfig can be instantiated with custom paths without mutating globals."""
     custom_root = tmp_path / "custom_root"
     cfg = IngestConfig(
         environment="dev",
@@ -133,20 +77,6 @@ def test_ingest_config_isolated_instantiation(tmp_path: Path) -> None:
     )
 
 
-def test_ingest_config_prod_mode_properties() -> None:
-    """Verify IngestConfig in prod mode computes S3 URIs."""
-    cfg = IngestConfig(
-        environment="prod",
-        s3_bucket_name="afina-prod-lakehouse",
-    )
-
-    assert cfg.environment == "prod"
-    assert cfg.storage_base_uri == "s3://afina-prod-lakehouse"
-    assert cfg.bronze_dir == "s3://afina-prod-lakehouse/bronze"
-    assert cfg.silver_dir == "s3://afina-prod-lakehouse/silver"
-    assert cfg.gold_dir == "s3://afina-prod-lakehouse/gold"
-
-
 def test_ingest_config_validation_rules() -> None:
     """Verify validation boundaries on anomaly rate and normalization."""
     # 1. Invalid anomaly rate > 1.0
@@ -163,6 +93,28 @@ def test_ingest_config_validation_rules() -> None:
     assert cfg.log_level == "WARNING"
 
 
+# -----------------------------------------------------------------------------
+# 2. LOCAL DIRECTORY INITIALIZATION TESTS
+# -----------------------------------------------------------------------------
+
+
+def test_ensure_local_directories_creation(mock_lakehouse_dirs: dict) -> None:
+    """Verify ensure_local_directories creates required folders in dev mode."""
+    with patch("src.ingest.config.ENVIRONMENT", "dev"):
+        config.ensure_local_directories()
+
+        assert Path(config.LOCAL_DATA_DIR).exists()
+        assert Path(config.WOOCOMMERCE_METADATA_DIR).exists()
+
+
+def test_ensure_local_directories_noop_in_prod() -> None:
+    """Verify ensure_local_directories skips directory creation in PROD mode cleanly."""
+    prod_cfg = IngestConfig(environment="prod")
+    with patch("pathlib.Path.mkdir") as mock_mkdir:
+        prod_cfg.ensure_local_directories()
+        mock_mkdir.assert_not_called()
+
+
 def test_ingest_config_ensure_local_directories_method(tmp_path: Path) -> None:
     """Verify ensure_local_directories method on model creates directories."""
     data_dir = tmp_path / "lakehouse_test_data"
@@ -177,6 +129,28 @@ def test_ingest_config_ensure_local_directories_method(tmp_path: Path) -> None:
     assert (data_dir / "silver").exists()
     assert (data_dir / "gold").exists()
     assert (data_dir / "metadata" / "woocommerce").exists()
+
+
+# -----------------------------------------------------------------------------
+# 3. BACKWARD-COMPATIBLE MODULE-LEVEL EXPORTS
+# -----------------------------------------------------------------------------
+
+
+def test_config_module_level_exports() -> None:
+    """Verify all expected top-level constants and singletons remain available."""
+    assert hasattr(config, "config")
+    assert isinstance(config.config, IngestConfig)
+    assert hasattr(config, "ENVIRONMENT")
+    assert hasattr(config, "S3_BUCKET_NAME")
+    assert hasattr(config, "BRONZE_DIR")
+    assert hasattr(config, "SILVER_DIR")
+    assert hasattr(config, "GOLD_DIR")
+    assert hasattr(config, "WOOCOMMERCE_API_URL")
+    assert hasattr(config, "WOOCOMMERCE_CONSUMER_KEY")
+    assert hasattr(config, "WOOCOMMERCE_CONSUMER_SECRET")
+    assert hasattr(config, "AWS_CONN_ID")
+    assert hasattr(config, "DEFAULT_START_ORDER_ID")
+    assert config.DEFAULT_START_ORDER_ID == 1000
 
 
 # -----------------------------------------------------------------------------

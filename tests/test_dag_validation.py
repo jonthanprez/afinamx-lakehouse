@@ -1,3 +1,4 @@
+import inspect
 import pytest
 from airflow.models import DagBag
 
@@ -5,7 +6,12 @@ from airflow.models import DagBag
 @pytest.fixture(scope="module")
 def dagbag():
     """Carga todos los DAGs de la carpeta dags/ en un entorno aislado."""
-    return DagBag(dag_folder="dags/", include_examples=False)
+    kwargs = {"dag_folder": "dags/"}
+    # Airflow 2 requires include_examples=False to prevent loading built-in example DAGs.
+    # Airflow 3 removed the include_examples argument from DagBag.__init__.
+    if "include_examples" in inspect.signature(DagBag.__init__).parameters:
+        kwargs["include_examples"] = False
+    return DagBag(**kwargs)
 
 
 def test_no_import_errors(dagbag):

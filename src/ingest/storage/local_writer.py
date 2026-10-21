@@ -56,7 +56,9 @@ class LocalStorageWriter(BaseStorageWriter):
                 encoding="utf-8",
                 prefix=".tmp_",
             ) as tmp_file:
-                if hasattr(payload, "model_dump"):
+                if hasattr(payload, "model_dump_json"):
+                    tmp_file.write(payload.model_dump_json(by_alias=True, indent=2))
+                elif hasattr(payload, "model_dump"):
                     json.dump(
                         payload.model_dump(by_alias=True),
                         tmp_file,

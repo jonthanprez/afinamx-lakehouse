@@ -200,6 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     """Main CLI execution entrypoint."""
     setup_logging(level=config.LOG_LEVEL)
+    config.ensure_local_directories()
     parser = build_parser()
     args = parser.parse_args()
 

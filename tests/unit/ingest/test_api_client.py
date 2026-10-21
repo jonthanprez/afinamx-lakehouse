@@ -59,6 +59,7 @@ def test_extract_and_load_simulator_success(
         use_simulator=True,
         storage_writer=mock_storage_writer,
         state_manager=mock_state_manager,
+        enable_anomalies=False,
     )
     exec_date = datetime(2026, 8, 24, 15, 0, 0, tzinfo=timezone.utc)
 
@@ -233,6 +234,7 @@ def test_extract_and_load_storage_failure_registers_failure(
         use_simulator=True,
         storage_writer=mock_storage_writer,
         state_manager=mock_state_manager,
+        enable_anomalies=False,
     )
 
     with pytest.raises(

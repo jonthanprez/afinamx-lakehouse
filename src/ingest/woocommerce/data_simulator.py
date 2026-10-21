@@ -146,6 +146,7 @@ class WooCommerceDataSimulator:
 
     def _save_customer_pool(self, pool: List[Customer]) -> None:
         """Atomically persists the customer pool to metadata storage."""
+        self.customers_file.parent.mkdir(parents=True, exist_ok=True)
         temp_file = self.customers_file.with_suffix(".tmp")
         serialized = [c.model_dump() for c in pool]
         temp_file.write_text(
@@ -205,6 +206,7 @@ class WooCommerceDataSimulator:
             last_execution_timestamp=now_iso,
             last_execution_status="SUCCESS",
         )
+        self.state_file.parent.mkdir(parents=True, exist_ok=True)
         temp_file = self.state_file.with_suffix(".tmp")
         temp_file.write_text(state.model_dump_json(indent=2), encoding="utf-8")
         temp_file.replace(self.state_file)

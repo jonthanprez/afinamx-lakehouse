@@ -8,6 +8,7 @@ from typing import Any, Dict, Generator
 from unittest.mock import patch
 import pytest
 
+from src.ingest.config import config
 from src.ingest.models import Customer, LineItem, Order
 
 
@@ -52,22 +53,7 @@ def mock_lakehouse_dirs(
     ]:
         directory.mkdir(parents=True, exist_ok=True)
 
-    with (
-        patch("src.ingest.config.LOCAL_DATA_DIR", tmp_data_dir),
-        patch("src.ingest.config.BRONZE_DIR", tmp_bronze_dir),
-        patch("src.ingest.config.SILVER_DIR", tmp_silver_dir),
-        patch("src.ingest.config.GOLD_DIR", tmp_gold_dir),
-        patch("src.ingest.config.METADATA_DIR", tmp_metadata_dir),
-        patch("src.ingest.config.WOOCOMMERCE_METADATA_DIR", tmp_woo_metadata_dir),
-        patch(
-            "src.ingest.config.WOOCOMMERCE_STATE_FILE",
-            tmp_woo_metadata_dir / "state.json",
-        ),
-        patch(
-            "src.ingest.config.WOOCOMMERCE_CUSTOMERS_FILE",
-            tmp_woo_metadata_dir / "customers.json",
-        ),
-    ):
+    with patch.object(config, "local_data_dir", tmp_data_dir):
         yield {
             "root": tmp_data_dir,
             "bronze": tmp_bronze_dir,

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from src.common.logger import get_logger
-from src.ingest.config import BRONZE_DIR
+from src.ingest.config import config
 from src.ingest.exceptions import StorageError
 from src.ingest.storage.base import BaseStorageWriter
 
@@ -17,7 +17,7 @@ class LocalStorageWriter(BaseStorageWriter):
     """Data writer for the local file system (DEV Environment)."""
 
     def __init__(self, base_dir: Optional[Union[str, Path]] = None) -> None:
-        self.base_dir = Path(base_dir) if base_dir else Path(BRONZE_DIR)
+        self.base_dir = Path(base_dir) if base_dir else Path(config.bronze_dir)
         logger.debug(
             "LocalStorageWriter initialized",
             extra={"base_dir": str(self.base_dir)},

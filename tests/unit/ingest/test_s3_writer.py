@@ -36,7 +36,7 @@ def test_s3_writer_initialization_defaults_to_config() -> None:
     with (
         patch("boto3.client") as mock_boto,
         patch(
-            "src.ingest.storage.s3_writer.S3_BUCKET_NAME",
+            "src.ingest.storage.s3_writer.config.s3_bucket_name",
             "global-lakehouse-bucket",
         ),
     ):

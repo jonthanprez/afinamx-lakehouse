@@ -15,7 +15,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from src.common.logger import get_logger
-from src.ingest import config
+from src.ingest.config import config
 from src.ingest.exceptions import (
     StorageError,
     WooCommerceAPIError,
@@ -53,7 +53,7 @@ class WooCommerceAPIClient:
         if use_simulator is not None:
             self.use_simulator = use_simulator
         else:
-            self.use_simulator = getattr(config, "USE_SIMULATOR", True)
+            self.use_simulator = config.use_simulator
 
         # Switch 2: Persistence (Injected or via Factory)
         self.storage_writer = (
@@ -269,9 +269,7 @@ class WooCommerceAPIClient:
         batch_size: int,
     ) -> Tuple[List[Dict[str, Any]], int, Optional[str]]:
         """Extracts orders from WooCommerce API using ISO timestamp pagination."""
-        api_url = getattr(
-            config, "WOOCOMMERCE_API_URL", "https://tienda.example.com/wp-json/wc/v3"
-        )
+        api_url = config.woocommerce_api_url
         endpoint = f"{api_url.rstrip('/')}/orders"
 
         params: Dict[str, Any] = {
@@ -285,8 +283,8 @@ class WooCommerceAPIClient:
             params["after"] = last_updated_at
 
         auth = (
-            getattr(config, "WOOCOMMERCE_CONSUMER_KEY", ""),
-            getattr(config, "WOOCOMMERCE_CONSUMER_SECRET", ""),
+            config.woocommerce_consumer_key,
+            config.woocommerce_consumer_secret,
         )
 
         logger.info(

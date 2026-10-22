@@ -7,9 +7,15 @@ parameter/environment variable, backed by a validated Pydantic BaseSettings mode
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Literal, Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ------------------------------------------------------------------------------
@@ -39,7 +45,10 @@ class IngestConfig(BaseSettings):
     aws_conn_id: Optional[str] = None
 
     # Base Paths
-    project_root: Path = Field(default=DEFAULT_ROOT, validation_alias="AIRFLOW_HOME")
+    project_root: Path = Field(
+        default=DEFAULT_ROOT,
+        validation_alias=AliasChoices("AIRFLOW_HOME", "PROJECT_ROOT"),
+    )
     local_data_dir: Optional[Path] = None
 
     # WooCommerce Source Configuration
@@ -78,56 +87,65 @@ class IngestConfig(BaseSettings):
     # --------------------------------------------------------------------------
     # Medallion & Storage Properties
     # --------------------------------------------------------------------------
+    @computed_field
     @property
     def storage_base_uri(self) -> str:
-        """Returns base storage URI (local path or s3 URI)."""
+        """Returns base storage URI (local POSIX path or S3 URI)."""
         if self.environment == "prod":
             return f"s3://{self.s3_bucket_name}"
-        return str(self.local_data_dir)
+        assert self.local_data_dir is not None
+        return self.local_data_dir.as_posix()
 
+    @computed_field
     @property
-    def bronze_dir(self) -> Union[Path, str]:
-        """Returns Bronze layer storage path (Path in dev, s3 URI in prod)."""
+    def bronze_dir(self) -> str:
+        """Returns Bronze layer storage URI (local POSIX path or S3 URI)."""
         if self.environment == "prod":
             return f"{self.storage_base_uri}/bronze"
         assert self.local_data_dir is not None
-        return self.local_data_dir / "bronze"
+        return (self.local_data_dir / "bronze").as_posix()
 
+    @computed_field
     @property
-    def silver_dir(self) -> Union[Path, str]:
-        """Returns Silver layer storage path (Path in dev, s3 URI in prod)."""
+    def silver_dir(self) -> str:
+        """Returns Silver layer storage URI (local POSIX path or S3 URI)."""
         if self.environment == "prod":
             return f"{self.storage_base_uri}/silver"
         assert self.local_data_dir is not None
-        return self.local_data_dir / "silver"
+        return (self.local_data_dir / "silver").as_posix()
 
+    @computed_field
     @property
-    def gold_dir(self) -> Union[Path, str]:
-        """Returns Gold layer storage path (Path in dev, s3 URI in prod)."""
+    def gold_dir(self) -> str:
+        """Returns Gold layer storage URI (local POSIX path or S3 URI)."""
         if self.environment == "prod":
             return f"{self.storage_base_uri}/gold"
         assert self.local_data_dir is not None
-        return self.local_data_dir / "gold"
+        return (self.local_data_dir / "gold").as_posix()
 
     # --------------------------------------------------------------------------
     # Metadata Paths Properties
     # --------------------------------------------------------------------------
+    @computed_field
     @property
     def metadata_dir(self) -> Path:
         """Directory for Lakehouse state and extraction metadata."""
         assert self.local_data_dir is not None
         return self.local_data_dir / "metadata"
 
+    @computed_field
     @property
     def woocommerce_metadata_dir(self) -> Path:
         """Directory for WooCommerce checkpoint state and customer pool."""
         return self.metadata_dir / "woocommerce"
 
+    @computed_field
     @property
     def woocommerce_state_file(self) -> Path:
         """JSON checkpoint file tracking extraction watermarks."""
         return self.woocommerce_metadata_dir / "state.json"
 
+    @computed_field
     @property
     def woocommerce_customers_file(self) -> Path:
         """JSON pool file caching generated customer records."""

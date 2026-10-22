@@ -19,17 +19,21 @@ from src.ingest.exceptions import IngestionError, StorageError
 
 
 def test_ingest_config_dev_mode_defaults() -> None:
-    """Verify DEV mode defaults resolve local Path instances for medallion layers."""
+    """Verify DEV mode defaults resolve local POSIX URI strings for medallion layers."""
     cfg = IngestConfig(environment="dev")
 
     assert cfg.environment == "dev"
     assert (cfg.project_root / "src").exists()
     assert (cfg.project_root / "src" / "ingest").exists()
-    assert isinstance(cfg.bronze_dir, Path)
-    assert isinstance(cfg.silver_dir, Path)
-    assert isinstance(cfg.gold_dir, Path)
-    assert "bronze" in str(cfg.bronze_dir)
-    assert cfg.storage_base_uri == str(cfg.local_data_dir)
+    assert isinstance(cfg.bronze_dir, str)
+    assert isinstance(cfg.silver_dir, str)
+    assert isinstance(cfg.gold_dir, str)
+    assert "bronze" in cfg.bronze_dir
+    assert cfg.local_data_dir is not None
+    assert cfg.storage_base_uri == cfg.local_data_dir.as_posix()
+    assert cfg.bronze_dir == (cfg.local_data_dir / "bronze").as_posix()
+    assert cfg.silver_dir == (cfg.local_data_dir / "silver").as_posix()
+    assert cfg.gold_dir == (cfg.local_data_dir / "gold").as_posix()
 
 
 def test_ingest_config_prod_mode_switch() -> None:
@@ -68,8 +72,8 @@ def test_ingest_config_isolated_instantiation(tmp_path: Path) -> None:
     assert cfg.environment == "dev"
     assert cfg.s3_bucket_name == "custom-test-bucket"
     assert cfg.simulator_anomaly_rate == 0.25
-    assert cfg.bronze_dir == custom_root / "data" / "bronze"
-    assert isinstance(cfg.bronze_dir, Path)
+    assert cfg.bronze_dir == (custom_root / "data" / "bronze").as_posix()
+    assert isinstance(cfg.bronze_dir, str)
     assert (
         cfg.woocommerce_state_file
         == custom_root / "data" / "metadata" / "woocommerce" / "state.json"
@@ -90,6 +94,47 @@ def test_ingest_config_validation_rules() -> None:
     cfg = IngestConfig(environment="PROD", log_level="warning")  # type: ignore[arg-type]
     assert cfg.environment == "prod"
     assert cfg.log_level == "WARNING"
+
+
+def test_ingest_config_alias_choices(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Verify project_root resolves from AIRFLOW_HOME or PROJECT_ROOT via AliasChoices."""
+    path_airflow = tmp_path / "airflow_home"
+    path_project = tmp_path / "project_root"
+
+    # 1. AIRFLOW_HOME takes priority
+    monkeypatch.setenv("AIRFLOW_HOME", str(path_airflow))
+    monkeypatch.setenv("PROJECT_ROOT", str(path_project))
+    cfg1 = IngestConfig()
+    assert cfg1.project_root == path_airflow
+
+    # 2. PROJECT_ROOT is used if AIRFLOW_HOME is unset
+    monkeypatch.delenv("AIRFLOW_HOME", raising=False)
+    monkeypatch.setenv("PROJECT_ROOT", str(path_project))
+    cfg2 = IngestConfig()
+    assert cfg2.project_root == path_project
+
+
+def test_ingest_config_computed_fields_serialization() -> None:
+    """Verify computed_fields are included in model_dump and model_dump_json."""
+    cfg = IngestConfig(environment="dev")
+    data = cfg.model_dump()
+
+    assert "storage_base_uri" in data
+    assert "bronze_dir" in data
+    assert "silver_dir" in data
+    assert "gold_dir" in data
+    assert "metadata_dir" in data
+    assert "woocommerce_metadata_dir" in data
+    assert "woocommerce_state_file" in data
+    assert "woocommerce_customers_file" in data
+
+    json_str = cfg.model_dump_json()
+    assert "storage_base_uri" in json_str
+    assert "bronze_dir" in json_str
+    assert "silver_dir" in json_str
+    assert "gold_dir" in json_str
 
 
 # -----------------------------------------------------------------------------

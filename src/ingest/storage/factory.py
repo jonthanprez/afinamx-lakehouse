@@ -6,7 +6,7 @@ Dynamically switches between local file system storage (DEV) and AWS S3 (PROD).
 from typing import Optional
 
 from src.common.logger import get_logger
-from src.ingest import config
+from src.ingest.config import config
 from src.ingest.storage.base import BaseStorageWriter
 from src.ingest.storage.local_writer import LocalStorageWriter
 from src.ingest.storage.s3_writer import S3StorageWriter
@@ -24,11 +24,11 @@ class StorageWriterFactory:
         """Returns an instance of LocalStorageWriter or S3StorageWriter.
 
         :param storage_type: Explicit storage target ('local', 'dev', 's3', 'prod').
-                             If None, defaults to config.ENVIRONMENT.
+                             If None, defaults to config.environment.
         :return: Concrete instance inheriting from BaseStorageWriter.
         :raises ValueError: If an unsupported environment or target type is specified.
         """
-        raw_target = storage_type or config.ENVIRONMENT
+        raw_target = storage_type or config.environment
         stype = raw_target.strip().lower()
 
         logger.info(
@@ -37,13 +37,12 @@ class StorageWriterFactory:
         )
 
         if stype in ["local", "dev"]:
-            return LocalStorageWriter(base_dir=config.BRONZE_DIR)
+            return LocalStorageWriter(base_dir=config.bronze_dir)
 
         if stype in ["s3", "prod"]:
-            aws_conn_id = getattr(config, "AWS_CONN_ID", None)
             return S3StorageWriter(
-                bucket_name=config.S3_BUCKET_NAME,
-                aws_conn_id=aws_conn_id,
+                bucket_name=config.s3_bucket_name,
+                aws_conn_id=config.aws_conn_id,
             )
 
         raise ValueError(

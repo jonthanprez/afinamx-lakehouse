@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.common.logger import get_logger
-from src.ingest import config
+from src.ingest.config import config
 from src.ingest.models import IngestionState
 
 logger = get_logger(__name__)
@@ -22,9 +22,9 @@ class WooCommerceStateManager:
     def __init__(self, state_file_path: Optional[Path] = None) -> None:
         """Initializes the state manager.
 
-        :param state_file_path: Custom path to state JSON file. Defaults to config.WOOCOMMERCE_STATE_FILE.
+        :param state_file_path: Custom path to state JSON file. Defaults to config.woocommerce_state_file.
         """
-        self.state_file_path = state_file_path or config.WOOCOMMERCE_STATE_FILE
+        self.state_file_path = state_file_path or config.woocommerce_state_file
 
     def load_state(self) -> Dict[str, Any]:
         """Loads and validates the last recorded state from metadata storage.
@@ -186,7 +186,7 @@ class WooCommerceStateManager:
 
     def _get_default_state(self) -> Dict[str, Any]:
         """Generates initial default state schema."""
-        default_start_id = getattr(config, "DEFAULT_START_ORDER_ID", 1000)
+        default_start_id = config.default_start_order_id
         return IngestionState(
             dataset_name="woocommerce",
             last_order_id=default_start_id,

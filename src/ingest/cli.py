@@ -28,7 +28,7 @@ import sys
 from typing import List, Optional
 
 from src.common.logger import get_logger, setup_logging
-from src.ingest import config
+from src.ingest.config import config
 from src.ingest.woocommerce.anomalies import SUPPORTED_ANOMALIES
 from src.ingest.woocommerce.api_client import WooCommerceAPIClient
 from src.ingest.woocommerce.data_simulator import WooCommerceDataSimulator
@@ -43,7 +43,7 @@ def handle_generate(args: argparse.Namespace) -> int:
     chaos_rate = (
         args.chaos_rate
         if args.chaos_rate is not None
-        else config.SIMULATOR_ANOMALY_RATE
+        else config.simulator_anomaly_rate
     )
 
     enabled_anomalies: Optional[List[str]] = None
@@ -199,7 +199,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     """Main CLI execution entrypoint."""
-    setup_logging(level=config.LOG_LEVEL)
+    setup_logging(level=config.log_level)
     config.ensure_local_directories()
     parser = build_parser()
     args = parser.parse_args()

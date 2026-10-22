@@ -12,12 +12,7 @@ from typing import Any, Dict, List, Optional
 from faker import Faker
 
 from src.common.logger import get_logger, setup_logging
-from src.ingest.config import (
-    SIMULATOR_ANOMALY_RATE,
-    SIMULATOR_ENABLE_ANOMALIES,
-    WOOCOMMERCE_CUSTOMERS_FILE,
-    WOOCOMMERCE_STATE_FILE,
-)
+from src.ingest.config import config
 from src.ingest.models import (
     Customer,
     IngestionState,
@@ -35,7 +30,7 @@ from src.ingest.woocommerce.products import (
 logger = get_logger(__name__)
 fake = Faker("es_MX")
 
-DEFAULT_START_ORDER_ID = 1000
+DEFAULT_START_ORDER_ID = config.default_start_order_id
 
 
 class WooCommerceDataSimulator:
@@ -58,18 +53,18 @@ class WooCommerceDataSimulator:
             anomaly_rate: Corruption probability rate. Defaults to SIMULATOR_ANOMALY_RATE (0.15).
             enabled_anomalies: Specific list of anomalies to enable. Defaults to all supported anomalies.
         """
-        self.state_file = Path(WOOCOMMERCE_STATE_FILE)
-        self.customers_file = Path(WOOCOMMERCE_CUSTOMERS_FILE)
+        self.state_file = Path(config.woocommerce_state_file)
+        self.customers_file = Path(config.woocommerce_customers_file)
         self.customer_pool_size = customer_pool_size
         self.returning_customer_ratio = returning_customer_ratio
 
         if enable_anomalies is not None:
             self.enable_anomalies = enable_anomalies
         else:
-            self.enable_anomalies = SIMULATOR_ENABLE_ANOMALIES
+            self.enable_anomalies = config.simulator_enable_anomalies
 
         self.anomaly_rate = (
-            anomaly_rate if anomaly_rate is not None else SIMULATOR_ANOMALY_RATE
+            anomaly_rate if anomaly_rate is not None else config.simulator_anomaly_rate
         )
         self.enabled_anomalies = enabled_anomalies
 

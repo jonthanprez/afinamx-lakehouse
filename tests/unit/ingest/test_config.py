@@ -1,8 +1,7 @@
 """Unit tests for src.ingest.config module.
 
-Verifies IngestConfig Pydantic model validation, environment switches, path resolutions,
-directory creation, and backward-compatible module-level exports without requiring
-unstable module reloading (importlib.reload).
+Verifies IngestConfig Pydantic BaseSettings model validation, environment switches, path resolutions,
+directory creation, and unified singleton instance properties.
 """
 
 from pathlib import Path
@@ -10,9 +9,9 @@ from unittest.mock import patch
 from pydantic import ValidationError
 import pytest
 
-import src.ingest.config as config
-from src.ingest.config import IngestConfig
+from src.ingest.config import IngestConfig, config
 from src.ingest.exceptions import IngestionError, StorageError
+
 
 # -----------------------------------------------------------------------------
 # 1. INGESTCONFIG MODEL & ISOLATED INSTANTIATION TESTS
@@ -100,11 +99,11 @@ def test_ingest_config_validation_rules() -> None:
 
 def test_ensure_local_directories_creation(mock_lakehouse_dirs: dict) -> None:
     """Verify ensure_local_directories creates required folders in dev mode."""
-    with patch("src.ingest.config.ENVIRONMENT", "dev"):
+    with patch.object(config, "environment", "dev"):
         config.ensure_local_directories()
 
-        assert Path(config.LOCAL_DATA_DIR).exists()
-        assert Path(config.WOOCOMMERCE_METADATA_DIR).exists()
+        assert Path(config.local_data_dir).exists()
+        assert Path(config.woocommerce_metadata_dir).exists()
 
 
 def test_ensure_local_directories_noop_in_prod() -> None:
@@ -132,25 +131,24 @@ def test_ingest_config_ensure_local_directories_method(tmp_path: Path) -> None:
 
 
 # -----------------------------------------------------------------------------
-# 3. BACKWARD-COMPATIBLE MODULE-LEVEL EXPORTS
+# 3. UNIFIED SINGLETON INSTANCE PROPERTIES
 # -----------------------------------------------------------------------------
 
 
-def test_config_module_level_exports() -> None:
-    """Verify all expected top-level constants and singletons remain available."""
-    assert hasattr(config, "config")
-    assert isinstance(config.config, IngestConfig)
-    assert hasattr(config, "ENVIRONMENT")
-    assert hasattr(config, "S3_BUCKET_NAME")
-    assert hasattr(config, "BRONZE_DIR")
-    assert hasattr(config, "SILVER_DIR")
-    assert hasattr(config, "GOLD_DIR")
-    assert hasattr(config, "WOOCOMMERCE_API_URL")
-    assert hasattr(config, "WOOCOMMERCE_CONSUMER_KEY")
-    assert hasattr(config, "WOOCOMMERCE_CONSUMER_SECRET")
-    assert hasattr(config, "AWS_CONN_ID")
-    assert hasattr(config, "DEFAULT_START_ORDER_ID")
-    assert config.DEFAULT_START_ORDER_ID == 1000
+def test_config_singleton_instance_properties() -> None:
+    """Verify all expected configuration properties are available on the singleton instance."""
+    assert isinstance(config, IngestConfig)
+    assert hasattr(config, "environment")
+    assert hasattr(config, "s3_bucket_name")
+    assert hasattr(config, "bronze_dir")
+    assert hasattr(config, "silver_dir")
+    assert hasattr(config, "gold_dir")
+    assert hasattr(config, "woocommerce_api_url")
+    assert hasattr(config, "woocommerce_consumer_key")
+    assert hasattr(config, "woocommerce_consumer_secret")
+    assert hasattr(config, "aws_conn_id")
+    assert hasattr(config, "default_start_order_id")
+    assert config.default_start_order_id == 1000
 
 
 # -----------------------------------------------------------------------------

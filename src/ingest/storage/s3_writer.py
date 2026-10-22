@@ -6,7 +6,7 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from src.common.logger import get_logger
-from src.ingest.config import S3_BUCKET_NAME
+from src.ingest.config import config
 from src.ingest.exceptions import StorageError
 from src.ingest.storage.base import BaseStorageWriter
 
@@ -26,8 +26,8 @@ class S3StorageWriter(BaseStorageWriter):
         :param bucket_name: S3 Bucket name. Defaults to S3_BUCKET_NAME from config.
         :param aws_conn_id: Optional Airflow hook ID if instantiated inside Airflow.
         """
-        # Fallback to S3_BUCKET_NAME from config.py if not provided
-        self.bucket_name = bucket_name or S3_BUCKET_NAME
+        # Fallback to s3_bucket_name from config if not provided
+        self.bucket_name = bucket_name or config.s3_bucket_name
         self.s3_client = boto3.client("s3")
         logger.debug(
             "S3StorageWriter initialized",

@@ -9,6 +9,7 @@ dependencies = [
     "faker",
     "psycopg2-binary",
     "pydantic>=2.7.0",
+    "pydantic-settings>=2.0.0",
     "requests",
 ]
 

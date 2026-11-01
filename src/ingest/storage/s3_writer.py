@@ -1,6 +1,8 @@
-import json
+"""Direct AWS S3 storage writer for the Bronze layer (PROD Environment)."""
+
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
+import mimetypes
+from typing import Any, Optional
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -14,47 +16,92 @@ logger = get_logger(__name__)
 
 
 class S3StorageWriter(BaseStorageWriter):
-    """Direct AWS S3 storage writer (PROD Environment or Cloud Integration Tests)."""
+    """Direct AWS S3 storage writer executing PutObject operations."""
 
     def __init__(
         self,
         bucket_name: Optional[str] = None,
         aws_conn_id: Optional[str] = None,
+        prefix: str = "bronze",
+        s3_client: Optional[Any] = None,
     ) -> None:
         """Initializes the S3 storage writer.
 
         :param bucket_name: S3 Bucket name. Defaults to S3_BUCKET_NAME from config.
         :param aws_conn_id: Optional Airflow hook ID if instantiated inside Airflow.
+        :param prefix: Medallion layer prefix in S3 (default: 'bronze').
+        :param s3_client: Optional injected boto3 S3 client (e.g. for testing/moto).
+        :raises ValueError: If bucket_name is empty or None.
         """
-        # Fallback to s3_bucket_name from config if not provided
-        self.bucket_name = bucket_name or config.s3_bucket_name
-        self.s3_client = boto3.client("s3")
+        resolved_bucket = bucket_name or config.s3_bucket_name
+        if not resolved_bucket or not str(resolved_bucket).strip():
+            raise ValueError("bucket_name cannot be empty or None.")
+
+        self.bucket_name = str(resolved_bucket).strip()
+        self.aws_conn_id = aws_conn_id
+        self.prefix = prefix.strip("/")
+
+        # Dependency injection or resolution via Airflow / Boto3
+        if s3_client is not None:
+            self.s3_client = s3_client
+        elif self.aws_conn_id:
+            self.s3_client = self._resolve_airflow_client(self.aws_conn_id)
+        else:
+            self.s3_client = boto3.client("s3")
+
         logger.debug(
             "S3StorageWriter initialized",
-            extra={"bucket_name": self.bucket_name},
+            extra={
+                "bucket_name": self.bucket_name,
+                "prefix": self.prefix,
+                "aws_conn_id": self.aws_conn_id,
+            },
         )
 
-    def write(
+    @staticmethod
+    def _resolve_airflow_client(conn_id: str) -> Any:
+        """Resolves S3 client from Airflow Connection if available, otherwise falls back to boto3."""
+        try:
+            from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+
+            return S3Hook(aws_conn_id=conn_id).get_conn()
+        except ImportError:
+            logger.warning(
+                "Airflow AWS provider not installed; falling back to default boto3.client('s3')"
+            )
+            return boto3.client("s3")
+
+    @staticmethod
+    def _detect_content_type(relative_path: str) -> str:
+        """Infers appropriate HTTP Content-Type based on file extension."""
+        if relative_path.endswith(".json"):
+            return "application/json; charset=utf-8"
+        if relative_path.endswith((".jsonl", ".ndjson")):
+            return "application/x-ndjson; charset=utf-8"
+        if relative_path.endswith(".gz"):
+            return "application/gzip"
+        mime, _ = mimetypes.guess_type(relative_path)
+        return mime or "application/octet-stream"
+
+    def _persist(
         self,
-        payload: Union[Dict[str, Any], str, bytes],
+        relative_path: str,
+        data: bytes,
         dataset_name: str,
-        filename: str,
-        execution_date: datetime,  # Strict: Required logical execution date
+        execution_date: datetime,
     ) -> str:
-        """Writes JSON payload with operational metadata directly to AWS S3.
+        """Persists payload bytes directly to AWS S3 using PutObject.
 
-        :param payload: Data payload dictionary to store.
-        :param dataset_name: Dataset entity subfolder (e.g., 'woocommerce').
-        :param filename: Target file name (e.g., 'orders.json').
-        :param execution_date: Orchestrator timestamp for Hive partitioning.
-        :return: Complete s3:// URI path of the written object.
+        :param relative_path: Canonical Hive path (<dataset>/year=YYYY/month=MM/<file>).
+        :param data: UTF-8 encoded bytes ready for upload.
+        :param dataset_name: Dataset name for logging.
+        :param execution_date: Orchestration execution timestamp.
+        :return: Complete s3:// URI string.
+        :raises StorageError: If Boto3 client/network operation fails.
         """
-        # 1. Hive partition path driven purely by logical event time
-        hive_partition = f"year={execution_date.year}/month={execution_date.month:02d}"
-
-        # S3 Object Key: bronze/<dataset_name>/year=YYYY/month=MM/<filename>
-        s3_key = f"bronze/{dataset_name}/{hive_partition}/{filename}"
+        s3_key = f"{self.prefix}/{relative_path}" if self.prefix else relative_path
         s3_uri = f"s3://{self.bucket_name}/{s3_key}"
+        content_type = self._detect_content_type(relative_path)
 
         logger.info(
             "Writing dataset to S3",
@@ -67,27 +114,12 @@ class S3StorageWriter(BaseStorageWriter):
             },
         )
 
-        # 2. Serialize to UTF-8 encoded byte array
-        if hasattr(payload, "model_dump_json"):
-            json_bytes = payload.model_dump_json(by_alias=True, indent=2).encode(
-                "utf-8"
-            )
-        elif isinstance(payload, bytes):
-            json_bytes = payload
-        elif isinstance(payload, str):
-            json_bytes = payload.encode("utf-8")
-        else:
-            json_bytes = json.dumps(payload, ensure_ascii=False, indent=2).encode(
-                "utf-8"
-            )
-
-        # 4. Atomic S3 PutObject execution
         try:
             self.s3_client.put_object(
                 Bucket=self.bucket_name,
                 Key=s3_key,
-                Body=json_bytes,
-                ContentType="application/json; charset=utf-8",
+                Body=data,
+                ContentType=content_type,
             )
             logger.info(
                 "Successfully wrote S3 object",
@@ -98,6 +130,8 @@ class S3StorageWriter(BaseStorageWriter):
                     "s3_key": s3_key,
                 },
             )
+            return s3_uri
+
         except (ClientError, BotoCoreError) as e:
             error_msg = f"Critical failure writing object to AWS S3 ({s3_uri}): {e}"
             logger.error(
@@ -111,8 +145,8 @@ class S3StorageWriter(BaseStorageWriter):
                     "error": str(e),
                 },
             )
-            # Re-raise wrapped in our custom StorageError
             raise StorageError(error_msg) from e
+
         except Exception as e:
             error_msg = f"Unexpected failure writing dataset '{dataset_name}' to S3 ({s3_uri}): {e}"
             logger.error(
@@ -127,5 +161,3 @@ class S3StorageWriter(BaseStorageWriter):
                 },
             )
             raise StorageError(error_msg) from e
-
-        return s3_uri

@@ -1,0 +1,162 @@
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.airflow
+  env_file:
+    - .env
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:-afinamx-local-jwt-secret-key-change-in-prod}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    PYTHONPATH: /opt/airflow
+    # Internal Docker network endpoint & S3/MinIO credentials with fallback
+    AWS_ENDPOINT_URL: http://minio:9000
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-${MINIO_ROOT_USER}}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD}}
+    AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  volumes:
+    - ./orchestration/dags:/opt/airflow/dags
+    - ./transformation:/opt/airflow/transformation
+    - ./src:/opt/airflow/src
+    - ./local_lake:/opt/airflow/local_lake
+    - airflow_logs:/opt/airflow/logs
+  user: "${AIRFLOW_UID:-50000}:0"
+
+services:
+  # ==========================================
+  # OBJECT STORAGE (S3-Compatible Local Lake)
+  # ==========================================
+  minio:
+    image: minio/minio:RELEASE.2025-02-18T16-25-55Z
+    container_name: afinamx-minio
+    command: server /data --console-address ":9001"
+    env_file:
+      - .env
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-02-15T10-36-16Z
+    container_name: afinamx-minio-init
+    env_file:
+      - .env
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/$${S3_BUCKET_BRONZE:-afinamx-bronze} &&
+      mc mb --ignore-existing local/$${S3_BUCKET_SILVER:-afinamx-silver} &&
+      mc mb --ignore-existing local/$${S3_BUCKET_GOLD:-afinamx-gold} &&
+      echo 'Medallion buckets verified successfully.'
+      "
+
+  # ==========================================
+  # METADATA DATABASE (Airflow 3 Backend)
+  # ==========================================
+  postgres:
+    image: postgres:17-alpine
+    container_name: afinamx-postgres
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ==========================================
+  # ORCHESTRATION (Apache Airflow 3)
+  # ==========================================
+  airflow-init:
+    <<: *airflow-common
+    container_name: afinamx-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate && (
+          airflow users create \
+            --username "$${AIRFLOW_ADMIN_USER}" \
+            --firstname Admin \
+            --lastname User \
+            --role Admin \
+            --email admin@afinamx.local \
+            --password "$${AIRFLOW_ADMIN_PASSWORD}" || true
+        )
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  airflow-api-server:
+    <<: *airflow-common
+    container_name: afinamx-airflow-api-server
+    command: api-server
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: afinamx-airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    container_name: afinamx-airflow-dag-processor
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --hostname \"$${HOSTNAME}\""]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  minio_data:
+  postgres_data:
+  airflow_logs:

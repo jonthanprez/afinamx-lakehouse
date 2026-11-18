@@ -1,0 +1,51 @@
+[project]
+name = "afinamx-lakehouse"
+version = "0.1.0"
+description = "Modern Data Lakehouse with Medallion Architecture for multiple revenue streams"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Transformation & SQL Engines
+    "dbt-core>=1.8.0",
+    "dbt-duckdb>=1.8.0",
+    "dbt-snowflake>=1.8.0",
+    "duckdb>=1.1.0",
+
+    # WooCommerce API Simulation
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "faker>=30.0.0",
+
+    # Storage & AWS Utilities
+    "boto3>=1.35.0",
+    "pyarrow>=17.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "sqlfluff>=3.2.0",
+    "sqlfluff-templater-dbt>=3.2.0",
+    "pytest>=8.3.0",
+    "ruff>=0.7.0",
+    "mypy>=1.11.0",
+    "bandit>=1.7.9",
+    "pip-audit>=2.7.3",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "UP"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = [".venv", "tests"]
+skips = ["B101"]

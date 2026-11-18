@@ -1,0 +1,97 @@
+# ==========================================
+# Python & uv
+# ==========================================
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ==========================================
+# Quality Tooling & Testing Caches
+# ==========================================
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# Secrets, Keys & Cloud Credentials
+# ==========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*service-account*.json
+profiles.yml
+!transformation/profiles.yml
+
+# ==========================================
+# Data Lakehouse, DuckDB, dbt & Airflow Local
+# ==========================================
+# Local S3 / MinIO data and DuckDB databases
+local_lake/*
+!local_lake/.gitkeep
+*.duckdb
+*.duckdb.wal
+*.sqlite
+*.sqlite3
+
+# dbt build artifacts & packages
+transformation/target/
+transformation/dbt_packages/
+transformation/logs/
+
+# Airflow local runtime logs & pids
+orchestration/logs/
+airflow.db
+airflow.cfg
+airflow-webserver.pid
+
+# ==========================================
+# Infrastructure as Code (Terraform)
+# ==========================================
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# ==========================================
+# Notebooks, IDEs & Operating Systems
+# ==========================================
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
